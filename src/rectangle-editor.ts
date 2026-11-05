@@ -60,12 +60,13 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         handle.dataset.corner = corner;
         handle.setAttribute('aria-label', `调整框选 ${corner}`);
     }
+    el.title = '单击选中 · 拖动边框移动 · 拖动圆点缩放 · 双击打开笔记';
     el.addEventListener('pointerdown', event => {
         if (event.button !== 0 || busy) return;
         select();
         const corner = (event.target as HTMLElement).dataset.corner;
         const box = el.getBoundingClientRect();
-        const nearBorder = Math.min(Math.abs(event.clientX - box.left), Math.abs(event.clientX - box.right), Math.abs(event.clientY - box.top), Math.abs(event.clientY - box.bottom)) <= 8;
+        const nearBorder = Math.min(Math.abs(event.clientX - box.left), Math.abs(event.clientX - box.right), Math.abs(event.clientY - box.top), Math.abs(event.clientY - box.bottom)) <= 12;
         if (!corner && !nearBorder) return;
         event.preventDefault();
         event.stopPropagation();
@@ -114,8 +115,16 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
     const escape = (event: KeyboardEvent) => {
         if (event.key === 'Escape') { cancelDrag?.(); el.classList.remove('pdf-plus-rect-selected'); }
     };
+    const deselect = (event: PointerEvent) => {
+        if (!el.contains(event.target as Node)) el.classList.remove('pdf-plus-rect-selected');
+    };
+    doc.addEventListener('pointerdown', deselect);
     doc.addEventListener('keydown', escape);
-    const cleanup = () => { cancelDrag?.(); doc.removeEventListener('keydown', escape); };
+    const cleanup = () => {
+        cancelDrag?.();
+        doc.removeEventListener('keydown', escape);
+        doc.removeEventListener('pointerdown', deselect);
+    };
     visualizer.domManager.onClearDomInPage(pageNumber, cleanup);
     visualizer.register(cleanup);
 }

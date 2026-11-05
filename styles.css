@@ -693,10 +693,36 @@ body.pdf-plus-vim-hint-inverted {
     --pdf-plus-vim-hint-background-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
 }
 
-.pdf-plus-rect-handle { display: none; position: absolute; width: 12px; height: 12px; background: var(--interactive-accent); border: 2px solid var(--background-primary); z-index: 2; pointer-events: auto; }
-.pdf-plus-rect-selected { outline: 1px solid var(--interactive-accent); }
+/* Rectangle controls share the annotation color; only the hit target is enlarged. */
+.pdf-plus-backlink-highlight-layer .pdf-plus-backlink.pdf-plus-backlink-fit-r:hover {
+    background-color: rgb(from var(--pdf-plus-rect-color) r g b / 0.12);
+}
+.pdf-plus-backlink-highlight-layer .pdf-plus-backlink.pdf-plus-backlink-fit-r.pdf-plus-rect-selected {
+    border-style: solid;
+    border-color: var(--pdf-plus-rect-color);
+    background-color: rgb(from var(--pdf-plus-rect-color) r g b / 0.45);
+    z-index: 2;
+}
+.pdf-plus-rect-handle {
+    display: none;
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    z-index: 3;
+    pointer-events: auto;
+    touch-action: none;
+}
+.pdf-plus-rect-handle::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    background: var(--pdf-plus-rect-color);
+    box-shadow: 0 0 0 2px white, 0 1px 5px rgb(0 0 0 / 0.35);
+    pointer-events: none;
+}
 .pdf-plus-rect-selected > .pdf-plus-rect-handle { display: block; }
-.pdf-plus-rect-handle.nw { left: -6px; top: -6px; cursor: nwse-resize; }
-.pdf-plus-rect-handle.ne { right: -6px; top: -6px; cursor: nesw-resize; }
-.pdf-plus-rect-handle.sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
-.pdf-plus-rect-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.pdf-plus-rect-handle.nw { left: -13px; top: -13px; cursor: nwse-resize; }
+.pdf-plus-rect-handle.ne { right: -13px; top: -13px; cursor: nesw-resize; }
+.pdf-plus-rect-handle.sw { left: -13px; bottom: -13px; cursor: nesw-resize; }
+.pdf-plus-rect-handle.se { right: -13px; bottom: -13px; cursor: nwse-resize; }
