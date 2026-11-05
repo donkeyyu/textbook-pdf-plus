@@ -14,8 +14,9 @@ The note contains the selected region and a return link. A missing color default
 to yellow so the rectangle remains visible. Escape cancels drawing. The original
 copy-only workflow remains available as **Start rectangular selection**.
 
-Rectangle editing: click a box to show its four corner handles. Drag its border
-within the same page to move it; drag a corner to resize it. Escape cancels an
+Rectangle editing: click a box to show its four corner handles. Drag its interior
+within the same page to move it. Drag an edge to adjust that edge, or a corner
+to resize both adjacent edges. Escape cancels an
 active drag. Double-click still opens the note. Right-click → **删除框选（保留笔记）**
 removes the region preview and converts its return link to a page-only link,
 keeping the note body. Moves and resizes update both links in the Markdown file.

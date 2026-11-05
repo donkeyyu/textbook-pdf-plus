@@ -728,9 +728,13 @@ body.pdf-plus-vim-hint-inverted {
 .pdf-plus-rect-handle.sw { left: -13px; bottom: -13px; cursor: nesw-resize; }
 .pdf-plus-rect-handle.se { right: -13px; bottom: -13px; cursor: nwse-resize; }
 
-.pdf-plus-rect-edge { position: absolute; z-index: 1; pointer-events: auto; cursor: move; touch-action: none; }
+.pdf-plus-rect-edge { position: absolute; z-index: 1; pointer-events: auto; touch-action: none; }
 .pdf-plus-rect-edge.n { top: -6px; left: 0; width: 100%; height: 12px; }
 .pdf-plus-rect-edge.s { bottom: -6px; left: 0; width: 100%; height: 12px; }
 .pdf-plus-rect-edge.w { left: -6px; top: 0; width: 12px; height: 100%; }
 .pdf-plus-rect-edge.e { right: -6px; top: 0; width: 12px; height: 100%; }
 .pdf-plus-rect-dragging, .pdf-plus-rect-dragging * { cursor: grabbing !important; }
+
+.pdf-plus-backlink-highlight-layer .pdf-plus-backlink.pdf-plus-backlink-fit-r { cursor: move; touch-action: none; }
+.pdf-plus-rect-edge.n, .pdf-plus-rect-edge.s { cursor: ns-resize; }
+.pdf-plus-rect-edge.e, .pdf-plus-rect-edge.w { cursor: ew-resize; }

@@ -63,16 +63,14 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
     for (const edge of ['n', 'e', 's', 'w']) {
         const hitArea = el.createDiv({ cls: `pdf-plus-rect-edge ${edge}` });
         hitArea.dataset.edge = edge;
-        hitArea.setAttribute('aria-label', '拖动边线移动框选');
+        hitArea.setAttribute('aria-label', '拖动边线调整大小');
     }
-    el.title = '单击选中 · 拖动边框移动 · 拖动圆点缩放 · 双击打开笔记';
+    el.title = '拖动框内移动 · 拖动边线或圆点调整大小 · 双击打开笔记';
     el.addEventListener('pointerdown', event => {
         if (event.button !== 0 || busy) return;
         select();
-        const corner = (event.target as HTMLElement).dataset.corner;
-        const box = el.getBoundingClientRect();
-        const nearBorder = Math.min(Math.abs(event.clientX - box.left), Math.abs(event.clientX - box.right), Math.abs(event.clientY - box.top), Math.abs(event.clientY - box.bottom)) <= 12;
-        if (!corner && !nearBorder) return;
+        const target = event.target as HTMLElement;
+        const corner = target.dataset.corner ?? target.dataset.edge;
         event.preventDefault();
         event.stopPropagation();
         const bounds = page.div.getBoundingClientRect();
@@ -97,9 +95,9 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
                 next = [rect[0] + dx, rect[1] + dy, rect[2] + dx, rect[3] + dy];
             } else {
                 if (corner.includes('w')) next[0] = Math.max(xmin, Math.min(rect[2] - 4, rect[0] + dx));
-                else next[2] = Math.min(xmax, Math.max(rect[0] + 4, rect[2] + dx));
+                if (corner.includes('e')) next[2] = Math.min(xmax, Math.max(rect[0] + 4, rect[2] + dx));
                 if (corner.includes('n')) next[3] = Math.min(ymax, Math.max(rect[1] + 4, rect[3] + dy));
-                else next[1] = Math.max(ymin, Math.min(rect[3] - 4, rect[1] + dy));
+                if (corner.includes('s')) next[1] = Math.max(ymin, Math.min(rect[3] - 4, rect[1] + dy));
             }
             if (!frame) frame = win.requestAnimationFrame(() => {
                 frame = 0;
