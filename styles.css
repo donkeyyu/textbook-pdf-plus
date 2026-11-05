@@ -738,3 +738,9 @@ body.pdf-plus-vim-hint-inverted {
 .pdf-plus-backlink-highlight-layer .pdf-plus-backlink.pdf-plus-backlink-fit-r { cursor: move; touch-action: none; }
 .pdf-plus-rect-edge.n, .pdf-plus-rect-edge.s { cursor: ns-resize; }
 .pdf-plus-rect-edge.e, .pdf-plus-rect-edge.w { cursor: ew-resize; }
+
+/* Rectangle notes use the vault template instead of copy-format controls. */
+.pdf-plus-color-palette .pdf-plus-action-menu,
+.pdf-plus-color-palette .pdf-plus-display-text-format-menu {
+    display: none;
+}
