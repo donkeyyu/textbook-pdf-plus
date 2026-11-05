@@ -1,3 +1,45 @@
+## Local textbook workflow
+
+This local fork adds **框选笔记** to the PDF toolbar. Click it, drag from the
+upper-left to the lower-right, and a Markdown note opens beside the PDF.
+The note uses `Templates/教材框选笔记.md` in the vault. Copy the supplied
+`templates/教材框选笔记.md` there when installing this build. Editing that file
+changes future notes without a restart. Keep its region and return-link placeholders
+to retain the marked PDF region. The template adds editable `content_type`
+(知识点 / 习题), `note_type` (补充 / 说明), and `printed_page` properties.
+`textbook` and `pdf_page` fill automatically. The four supported placeholders are
+`{{textbook}}` (a YAML-quoted link), `{{pdf_page}}`, `{{textbook_region}}`, and
+`{{back_to_textbook}}`. A missing template stops creation with a notice.
+The note contains the selected region and a return link. A missing color defaults
+to yellow so the rectangle remains visible. Escape cancels drawing. The original
+copy-only workflow remains available as **Start rectangular selection**.
+
+Rectangle editing: click a box to show its four corner handles. Drag its border
+within the same page to move it; drag a corner to resize it. Escape cancels an
+active drag. Double-click still opens the note. Right-click → **删除框选（保留笔记）**
+removes the region preview and converts its return link to a page-only link,
+keeping the note body. Moves and resizes update both links in the Markdown file.
+The current editor supports one associated note per rectangle; shared regions
+and frontmatter region links are rejected without writing. Stale Markdown ranges
+are also rejected so concurrent edits cannot overwrite unrelated text.
+
+Source baseline: `6a3218b9c506076b405438489e614bc9e22b833b` (PDF++ 0.40.31).
+Only the isolated `pdf-plus-path-validation` vault receives this local build.
+Upstream plugin updates can replace it; the editable source is in this repository.
+
+Build with the checked-in dependency lock:
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+npm run build
+node --test tests/rectangle-note.test.mjs
+```
+
+The patch also handles a missing Page Preview override map in newer Obsidian
+versions so the PDF++ settings page can finish rendering.
+
+---
+
 <h1 align="center">Obsidian PDF++</h1>
 <p align="center">
 <img src="https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%238a5cf5&label=downloads&query=%24%5B%22pdf-plus%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json" alt="Obsidian Downloads">

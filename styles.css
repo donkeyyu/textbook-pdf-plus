@@ -692,3 +692,11 @@ body.pdf-plus-vim-hint-inverted {
     --pdf-plus-vim-hint-color: var(--text-on-accent);
     --pdf-plus-vim-hint-background-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
 }
+
+.pdf-plus-rect-handle { display: none; position: absolute; width: 12px; height: 12px; background: var(--interactive-accent); border: 2px solid var(--background-primary); z-index: 2; pointer-events: auto; }
+.pdf-plus-rect-selected { outline: 1px solid var(--interactive-accent); }
+.pdf-plus-rect-selected > .pdf-plus-rect-handle { display: block; }
+.pdf-plus-rect-handle.nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.pdf-plus-rect-handle.ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.pdf-plus-rect-handle.sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.pdf-plus-rect-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }

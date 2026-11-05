@@ -25,6 +25,15 @@ export class PDFPlusCommands extends PDFPlusLibSubmodule {
                 name: 'Copy link to selection or annotation',
                 checkCallback: (checking) => this.copyLink(checking, false)
             }, {
+                id: 'rectangle-note',
+                name: '框选笔记（自动创建）',
+                checkCallback: (checking) => {
+                    const palette = this.lib.getColorPalette();
+                    if (!palette?.cropButtonEl || !palette.child.file) return false;
+                    if (!checking) palette.startRectangularSelection(false, true);
+                    return true;
+                }
+            }, {
                 id: 'rectangular-selection',
                 name: 'Start rectangular selection',
                 checkCallback: (checking) => this.copyEmbedLinkToRectangularSelection(checking, false)

@@ -1,3 +1,4 @@
+import { attachRectangleEditor } from './rectangle-editor';
 import { HoverParent, HoverPopover, Keymap, TFile, setIcon } from 'obsidian';
 
 import PDFPlus from 'main';
@@ -528,6 +529,7 @@ export class PDFViewerBacklinkVisualizer extends PDFBacklinkVisualizer implement
         const { left, bottom, right, top } = PDFPageBacklinkIndex.FitRIdToParams(id);
         const rectEl = this.lib.highlight.viewer.placeRectInPage([left, bottom, right, top], pageView);
         rectEl.addClasses(['pdf-plus-backlink', 'pdf-plus-backlink-fit-r']);
+        attachRectangleEditor(this, rectEl, pageNumber, [left, bottom, right, top], caches);
 
         const cacheToDoms = this.domManager.getCacheToDomsMap(pageNumber);
         for (const cache of caches) {

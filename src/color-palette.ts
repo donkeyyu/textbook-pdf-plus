@@ -1,4 +1,4 @@
-import { Menu, Notice, Platform, setIcon, setTooltip } from 'obsidian';
+import { MarkdownView, Menu, Notice, Platform, TFile, normalizePath, setIcon, setTooltip } from 'obsidian';
 
 import PDFPlus from 'main';
 import { KeysOfType, getEventCoords, isHexString, showMenuUnderParentEl, isTargetHTMLElement } from 'utils';
@@ -24,6 +24,7 @@ export class ColorPalette extends PDFPlusComponent {
     displayTextFormatMenuEl: HTMLElement | null;
     writeFileButtonEl: HTMLElement | null;
     cropButtonEl: HTMLElement | null;
+    private stopRectangularSelection?: () => void;
     statusContainerEl: HTMLElement | null;
     statusEl: HTMLElement | null;
     importButtonEl: HTMLElement | null;
@@ -95,6 +96,7 @@ export class ColorPalette extends PDFPlusComponent {
     }
 
     onunload() {
+        this.stopRectangularSelection?.();
         this.spacerEl?.remove();
         if (this.paletteEl) {
             this.paletteEl.remove();
@@ -425,12 +427,12 @@ export class ColorPalette extends PDFPlusComponent {
     }
 
     addCropButton(paletteEl: HTMLElement) {
-        this.cropButtonEl = paletteEl.createDiv('clickable-icon pdf-plus-rect-select', (el) => {
-            setIcon(el, 'lucide-box-select');
-            setTooltip(el, 'Copy embed link to rectangular selection');
+        this.cropButtonEl = paletteEl.createEl('button', { cls: 'pdf-plus-rect-select', text: '框选笔记' }, (el) => {
+            el.type = 'button';
+            setTooltip(el, '画框后自动创建笔记；按 Escape 取消');
 
             el.addEventListener('click', () => {
-                this.startRectangularSelection(false);
+                this.startRectangularSelection(false, true);
             });
 
             let shown = false;
@@ -456,7 +458,54 @@ export class ColorPalette extends PDFPlusComponent {
         });
     }
 
-    startRectangularSelection(autoPaste: boolean) {
+    async createNoteForRectangle(pageNumber: number, rect: Rect) {
+        const pdf = this.child.file;
+        if (!pdf || rect.some((value) => !Number.isFinite(value))) return;
+        const folder = this.app.fileManager.getNewFileParent(pdf.path);
+        const color = this.selectedColorName ?? 'yellow';
+        const subpath = `#page=${pageNumber}&rect=${rect.map(Math.round).join(',')}&color=${encodeURIComponent(color)}`;
+        const sourcePath = normalizePath(`${folder.path}/note.md`);
+        const embed = this.lib.generateMarkdownLink(pdf, sourcePath, subpath, '返回教材原文');
+        try {
+            const template = this.app.vault.getAbstractFileByPath('Templates/教材框选笔记.md');
+            if (!(template instanceof TFile)) {
+                new Notice('找不到模板 Templates/教材框选笔记.md，请恢复模板后重试。');
+                return;
+            }
+            const variables: Record<string, string> = {
+                textbook: JSON.stringify(this.app.fileManager.generateMarkdownLink(pdf, sourcePath)),
+                pdf_page: String(pageNumber),
+                textbook_region: embed,
+                back_to_textbook: embed.slice(1),
+            };
+            const content = (await this.app.vault.read(template)).replace(
+                /{{\s*(textbook|pdf_page|textbook_region|back_to_textbook)\s*}}/g,
+                (_, key: string) => variables[key],
+            );
+            const note = await this.app.fileManager.createNewMarkdownFile(folder, `${pdf.basename} - 第${pageNumber}页笔记`, content);
+            try {
+                await this.lib.workspace.openMarkdownLinkFromPDF(note.path, pdf.path, false);
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view?.file === note) {
+                    await view.setState({ mode: 'source', source: false }, { history: false });
+                    view.editor.setCursor(view.editor.lastLine(), 0);
+                    view.editor.focus();
+                }
+            } catch (error) {
+                console.error(error);
+                new Notice(`笔记已保存：${note.path}。请从文件列表打开。`);
+            }
+        } catch (error) {
+            console.error(error);
+            new Notice('笔记未能保存，请重新框选后重试。');
+        }
+    }
+
+    startRectangularSelection(autoPaste: boolean, createNote = false) {
+        if (this.stopRectangularSelection) {
+            this.stopRectangularSelection();
+            return;
+        }
         const cropButtonEl = this.cropButtonEl;
         if (!cropButtonEl) return;
 
@@ -466,7 +515,10 @@ export class ColorPalette extends PDFPlusComponent {
         const viewerEl = child.pdfViewer.dom.viewerEl;
 
         const selectBox = { left: 0, top: 0, width: 0, height: 0 };
+        let clearDrag = () => {};
         const onPointerDown = (evt: PointerEvent | TouchEvent) => {
+            if ('button' in evt && evt.button !== 0) return;
+            clearDrag();
             // Determine the target page based on the event target
             if (!(isTargetHTMLElement(evt, evt.target))) return;
 
@@ -482,6 +534,8 @@ export class ColorPalette extends PDFPlusComponent {
             const { x, y } = getEventCoords(evt);
             selectBox.left = x;
             selectBox.top = y;
+            selectBox.width = 0;
+            selectBox.height = 0;
 
             // Display the selection box
             const boxEl = pageEl.createDiv('pdf-plus-select-box');
@@ -522,10 +576,7 @@ export class ColorPalette extends PDFPlusComponent {
             };
 
             const onPointerUp = () => {
-                pageEl.removeEventListener('pointermove', onPointerMove);
-                pageEl.removeEventListener('touchmove', onTouchMove);
-                pageEl.removeEventListener('pointerup', onPointerUp);
-                pageEl.removeChild(boxEl);
+                clearDrag();
 
                 // Discard empty selections
                 if (selectBox.height <= 0 || selectBox.width <= 0) return;
@@ -543,7 +594,9 @@ export class ColorPalette extends PDFPlusComponent {
                 ]) as Rect;
 
                 // Copy an embed link to the selection
-                this.lib.copyLink.copyEmbedLinkToRect(
+                if (createNote) {
+                    void this.createNoteForRectangle(pageView.id, rect);
+                } else this.lib.copyLink.copyEmbedLinkToRect(
                     false, child, pageView.id, rect,
                     this.plugin.settings.includeColorWhenCopyingRectLink
                         ? this.selectedColorName ?? undefined
@@ -556,6 +609,12 @@ export class ColorPalette extends PDFPlusComponent {
             // `pageEl` is not a part of this component, so just `pageEl.addEventListener` & `pageEl.removeEventListener`is not enough.
             // We have to explicitly remove the event listeners not just when the selection is done, but also
             // when this component gets unloaded.
+            clearDrag = () => {
+                pageEl.removeEventListener('pointermove', onPointerMove);
+                pageEl.removeEventListener('touchmove', onTouchMove);
+                pageEl.removeEventListener('pointerup', onPointerUp);
+                boxEl.remove();
+            };
             this.registerDomEvent(pageEl, 'pointermove', onPointerMove);
             this.registerDomEvent(pageEl, 'touchmove', onTouchMove);
             this.registerDomEvent(pageEl, 'pointerup', onPointerUp);
@@ -569,6 +628,7 @@ export class ColorPalette extends PDFPlusComponent {
 
         const toggle = () => {
             cropButtonEl.toggleClass('is-active', !cropButtonEl.hasClass('is-active'));
+            cropButtonEl.setAttribute('aria-pressed', String(cropButtonEl.hasClass('is-active')));
             viewerEl.toggleClass('pdf-plus-selecting', cropButtonEl.hasClass('is-active'));
             this.register(() => viewerEl.removeClass('pdf-plus-selecting'));
 
@@ -578,9 +638,13 @@ export class ColorPalette extends PDFPlusComponent {
                 // `viewerEl` is not a part of this component, so just `viewerEl.addEventListener` & `viewerEl.removeEventListener`is not enough.
                 // We have to explicitly remove the event listeners not just when the selection is done, but also
                 // when this component gets unloaded.
+                this.stopRectangularSelection = toggle;
+                if (createNote) new Notice('在教材上从左上向右下画框，松开后自动创建笔记。Escape 取消。');
                 this.registerDomEvent(viewerEl, 'pointerdown', onPointerDown);
                 this.registerDomEvent(viewerEl.doc, 'keydown', onKeyDown);
             } else {
+                this.stopRectangularSelection = undefined;
+                clearDrag();
                 viewerEl.removeEventListener('pointerdown', onPointerDown);
                 viewerEl.doc.removeEventListener('keydown', onKeyDown);
             }
