@@ -715,10 +715,11 @@ body.pdf-plus-vim-hint-inverted {
 .pdf-plus-rect-handle::after {
     content: '';
     position: absolute;
-    inset: 6px;
+    inset: 8px;
     border-radius: 50%;
-    background: var(--pdf-plus-rect-color);
-    box-shadow: 0 0 0 2px white, 0 1px 5px rgb(0 0 0 / 0.35);
+    border: 2px solid var(--pdf-plus-rect-color);
+    background: white;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
     pointer-events: none;
 }
 .pdf-plus-rect-selected > .pdf-plus-rect-handle { display: block; }
@@ -726,3 +727,10 @@ body.pdf-plus-vim-hint-inverted {
 .pdf-plus-rect-handle.ne { right: -13px; top: -13px; cursor: nesw-resize; }
 .pdf-plus-rect-handle.sw { left: -13px; bottom: -13px; cursor: nesw-resize; }
 .pdf-plus-rect-handle.se { right: -13px; bottom: -13px; cursor: nwse-resize; }
+
+.pdf-plus-rect-edge { position: absolute; z-index: 1; pointer-events: auto; cursor: move; touch-action: none; }
+.pdf-plus-rect-edge.n { top: -6px; left: 0; width: 100%; height: 12px; }
+.pdf-plus-rect-edge.s { bottom: -6px; left: 0; width: 100%; height: 12px; }
+.pdf-plus-rect-edge.w { left: -6px; top: 0; width: 12px; height: 100%; }
+.pdf-plus-rect-edge.e { right: -6px; top: 0; width: 12px; height: 100%; }
+.pdf-plus-rect-dragging, .pdf-plus-rect-dragging * { cursor: grabbing !important; }

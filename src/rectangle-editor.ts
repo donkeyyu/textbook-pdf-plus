@@ -60,6 +60,11 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         handle.dataset.corner = corner;
         handle.setAttribute('aria-label', `调整框选 ${corner}`);
     }
+    for (const edge of ['n', 'e', 's', 'w']) {
+        const hitArea = el.createDiv({ cls: `pdf-plus-rect-edge ${edge}` });
+        hitArea.dataset.edge = edge;
+        hitArea.setAttribute('aria-label', '拖动边线移动框选');
+    }
     el.title = '单击选中 · 拖动边框移动 · 拖动圆点缩放 · 双击打开笔记';
     el.addEventListener('pointerdown', event => {
         if (event.button !== 0 || busy) return;
@@ -70,11 +75,16 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         if (!corner && !nearBorder) return;
         event.preventDefault();
         event.stopPropagation();
-        const start = page.viewport.convertToPdfPoint(event.clientX - page.div.getBoundingClientRect().left, event.clientY - page.div.getBoundingClientRect().top);
+        const bounds = page.div.getBoundingClientRect();
+        const start = page.viewport.convertToPdfPoint(event.clientX - bounds.left, event.clientY - bounds.top);
+        const win = doc.defaultView!;
+        let frame = 0;
+        el.setPointerCapture(event.pointerId);
+        el.classList.add('pdf-plus-rect-dragging');
         let next = rect;
         let moved = false;
         const move = (e: PointerEvent) => {
-            const bounds = page.div.getBoundingClientRect();
+            if (e.pointerId !== event.pointerId) return;
             const point = page.viewport.convertToPdfPoint(e.clientX - bounds.left, e.clientY - bounds.top);
             let dx = point[0] - start[0], dy = point[1] - start[1];
             moved ||= Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY) > 3;
@@ -91,16 +101,29 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
                 if (corner.includes('n')) next[3] = Math.min(ymax, Math.max(rect[1] + 4, rect[3] + dy));
                 else next[1] = Math.max(ymin, Math.min(rect[3] - 4, rect[1] + dy));
             }
-            paint(next);
+            if (!frame) frame = win.requestAnimationFrame(() => {
+                frame = 0;
+                if (corner) paint(next); // Keep handles circular while resizing.
+                else el.style.transform = `translate(${100 * (next[0] - rect[0]) / (rect[2] - rect[0])}%, ${-100 * (next[1] - rect[1]) / (rect[3] - rect[1])}%)`;
+            });
         };
         const cleanup = () => {
+            win.cancelAnimationFrame(frame);
+            el.style.transform = '';
+            el.classList.remove('pdf-plus-rect-dragging');
+            if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
             doc.removeEventListener('pointermove', move);
             doc.removeEventListener('pointerup', up);
             doc.removeEventListener('pointercancel', cancel);
             cancelDrag = undefined;
         };
         const cancel = () => { cleanup(); paint(rect); };
-        const up = () => { cleanup(); if (moved) void save(next.map(Math.round) as Rect); };
+        const up = (e: PointerEvent) => {
+            if (e.pointerId !== event.pointerId) return;
+            move(e);
+            cleanup();
+            if (moved) { paint(next); void save(next.map(Math.round) as Rect); }
+        };
         cancelDrag = cancel;
         doc.addEventListener('pointermove', move);
         doc.addEventListener('pointerup', up);
