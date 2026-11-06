@@ -1,4 +1,5 @@
-import { MarkdownView, Menu, Notice, Platform, TFile, normalizePath, setIcon, setTooltip } from 'obsidian';
+import { rectangleMetadata } from './chapters/store';
+import { MarkdownView, Menu, Notice, Platform, TFile, TFolder, normalizePath, setIcon, setTooltip } from 'obsidian';
 
 import PDFPlus from 'main';
 import { KeysOfType, getEventCoords, isHexString, showMenuUnderParentEl, isTargetHTMLElement } from 'utils';
@@ -461,15 +462,25 @@ export class ColorPalette extends PDFPlusComponent {
     async createNoteForRectangle(pageNumber: number, rect: Rect) {
         const pdf = this.child.file;
         if (!pdf || rect.some((value) => !Number.isFinite(value))) return;
-        const folder = this.app.fileManager.getNewFileParent(pdf.path);
         const color = this.selectedColorName ?? 'yellow';
         const subpath = `#page=${pageNumber}&rect=${rect.map(Math.round).join(',')}&color=${encodeURIComponent(color)}`;
-        const sourcePath = normalizePath(`${folder.path}/note.md`);
-        const embed = this.lib.generateMarkdownLink(pdf, sourcePath, subpath, '返回教材原文');
         try {
-            const template = this.app.vault.getAbstractFileByPath('Templates/教材框选笔记.md');
+            const configuredFolder = this.plugin.settings.textbookNoteFolder.trim();
+            if (configuredFolder.split(/[\\/]/).some(part => part === '..') || configuredFolder.startsWith('/') || /^[A-Za-z]:/.test(configuredFolder)) {
+                throw new Error('笔记目录必须是库内相对路径');
+            }
+            const folderPath = normalizePath(configuredFolder);
+            if (configuredFolder && !this.app.vault.getAbstractFileByPath(folderPath)) {
+                await this.app.vault.createFolder(folderPath);
+            }
+            const folder = configuredFolder ? this.app.vault.getAbstractFileByPath(folderPath) : this.app.fileManager.getNewFileParent(pdf.path);
+            if (!(folder instanceof TFolder)) throw new Error('笔记存放位置不是文件夹');
+            const sourcePath = normalizePath(`${folder.path}/note.md`);
+            const embed = this.lib.generateMarkdownLink(pdf, sourcePath, subpath, '返回教材原文');
+            const templatePath = this.plugin.settings.textbookNoteTemplate.trim();
+            const template = this.app.vault.getAbstractFileByPath(templatePath);
             if (!(template instanceof TFile)) {
-                new Notice('找不到模板 Templates/教材框选笔记.md，请恢复模板后重试。');
+                new Notice(`找不到模板 ${templatePath}，请在教材笔记管理中检查路径。`);
                 return;
             }
             const variables: Record<string, string> = {
@@ -478,10 +489,13 @@ export class ColorPalette extends PDFPlusComponent {
                 textbook_region: embed,
                 back_to_textbook: embed.slice(1),
             };
-            const content = (await this.app.vault.read(template)).replace(
+            let content = (await this.app.vault.read(template)).replace(
                 /{{\s*(textbook|pdf_page|textbook_region|back_to_textbook)\s*}}/g,
                 (_, key: string) => variables[key],
             );
+            const doc = this.child.pdfViewer.pdfViewer?.pdfDocument;
+            if (!doc) throw new Error('教材尚未加载完成');
+            content = await rectangleMetadata(this.plugin, pdf, doc, pageNumber, rect, content);
             const note = await this.app.fileManager.createNewMarkdownFile(folder, `${pdf.basename} - 第${pageNumber}页笔记`, content);
             try {
                 await this.lib.workspace.openMarkdownLinkFromPDF(note.path, pdf.path, false);
@@ -497,7 +511,7 @@ export class ColorPalette extends PDFPlusComponent {
             }
         } catch (error) {
             console.error(error);
-            new Notice('笔记未能保存，请重新框选后重试。');
+            new Notice(`笔记未能保存：${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

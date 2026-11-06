@@ -1,7 +1,27 @@
+import { rectangleMetadata, withProperties } from './chapters/store';
 import { Menu, Notice, TFile } from 'obsidian';
 import type { PDFViewerBacklinkVisualizer } from './backlink-visualizer';
 import type { PDFBacklinkCache } from './lib/pdf-backlink-index';
-import type { Rect } from './typings';
+import type { PDFViewerChild, Rect } from './typings';
+
+const pendingRectangle = new WeakMap<PDFViewerChild, { page: number; rect: Rect }>();
+const sameRectangle = (a: Rect, b: Rect) => a.every((value, i) => Math.abs(value - b[i]) < 0.51);
+function selectRectangle(el: HTMLElement) {
+    el.ownerDocument.querySelectorAll('.pdf-plus-rect-selected').forEach(other => other.classList.remove('pdf-plus-rect-selected'));
+    el.classList.add('pdf-plus-rect-selected');
+}
+export function clearPendingRectangle(child: PDFViewerChild) { pendingRectangle.delete(child); }
+export function activateLinkedRectangle(child: PDFViewerChild, page: number, rect: Rect) {
+    pendingRectangle.set(child, { page, rect });
+    const elements = child.getPage(page)?.div.querySelectorAll<HTMLElement>('[data-textbook-rect]') ?? [];
+    for (const el of elements) {
+        if (sameRectangle(JSON.parse(el.dataset.textbookRect!), rect)) {
+            selectRectangle(el);
+            pendingRectangle.delete(child);
+            break;
+        }
+    }
+}
 
 // Use cached Markdown ranges, and refuse stale ranges rather than modifying unrelated text.
 export function rewriteRectangleLinks(text: string, refs: { start: number; end: number; original: string }[], rect: Rect | null) {
@@ -24,7 +44,9 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
     let busy = false;
     let cancelDrag: (() => void) | undefined;
     let rect = initial;
+    el.dataset.textbookRect = JSON.stringify(initial);
     const paint = (value: Rect) => {
+        el.dataset.textbookRect = JSON.stringify(value);
         const [x, y, right, top] = page.pdfPage.view;
         el.style.left = `${100 * (value[0] - x) / (right - x)}%`;
         el.style.top = `${100 * (top - value[3]) / (top - y)}%`;
@@ -43,7 +65,17 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
                 if (!('position' in refCache)) throw new Error('属性中的区域链接暂不支持调整');
                 return { start: refCache.position.start.offset, end: refCache.position.end.offset, original: refCache.original };
             });
-            await app.vault.process(file, text => rewriteRectangleLinks(text, refs, next));
+            const before = await app.vault.read(file);
+            let after = rewriteRectangleLinks(before, refs, next);
+            if (next) {
+                const document = visualizer.child.pdfViewer.pdfViewer?.pdfDocument;
+                if (!document) throw Error('教材尚未加载完成');
+                after = await rectangleMetadata(visualizer.plugin, visualizer.file, document, pageNumber, next, after);
+            } else after = withProperties(after, { pdf_rect: null, region_top: null, region_bottom: null, chapter_status: 'region_removed' });
+            await app.vault.process(file, current => {
+                if (current !== before) throw Error('笔记已更改，请稍后重试');
+                return after;
+            });
             if (next) { rect = next; paint(next); }
             else el.remove();
         } catch (error) {
@@ -51,10 +83,7 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
             new Notice(`框选未更改：${error instanceof Error ? error.message : String(error)}`);
         } finally { busy = false; }
     };
-    const select = () => {
-        doc.querySelectorAll('.pdf-plus-rect-selected').forEach(other => other.classList.remove('pdf-plus-rect-selected'));
-        el.classList.add('pdf-plus-rect-selected');
-    };
+    const select = () => selectRectangle(el);
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
         const handle = el.createDiv({ cls: `pdf-plus-rect-handle ${corner}` });
         handle.dataset.corner = corner;
@@ -64,6 +93,11 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         const hitArea = el.createDiv({ cls: `pdf-plus-rect-edge ${edge}` });
         hitArea.dataset.edge = edge;
         hitArea.setAttribute('aria-label', '拖动边线调整大小');
+    }
+    const pending = pendingRectangle.get(visualizer.child);
+    if (pending?.page === pageNumber && sameRectangle(initial, pending.rect)) {
+        select();
+        pendingRectangle.delete(visualizer.child);
     }
     el.title = '拖动框内移动 · 拖动边线或圆点调整大小 · 双击打开笔记';
     el.addEventListener('pointerdown', event => {

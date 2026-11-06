@@ -1,3 +1,4 @@
+import { ChaptersModal, chooseNoteChapter } from '../chapters/panel';
 import { Command, MarkdownView, Notice, TFile, WorkspaceLeaf, normalizePath, setIcon } from 'obsidian';
 
 import { PDFPlusLibSubmodule } from './submodule';
@@ -24,6 +25,28 @@ export class PDFPlusCommands extends PDFPlusLibSubmodule {
                 id: 'copy-link-to-selection',
                 name: 'Copy link to selection or annotation',
                 checkCallback: (checking) => this.copyLink(checking, false)
+            }, {
+                id: 'textbook-note-settings',
+                name: '教材笔记管理',
+                callback: () => this.plugin.openSettingTab().scrollToHeading('textbook-notes')
+            }, {
+                id: 'textbook-chapters',
+                name: '教材章节管理（提取与校正）',
+                checkCallback: checking => {
+                    const palette = this.lib.getColorPalette();
+                    if (!palette?.child.file || !palette.child.pdfViewer.pdfViewer) return false;
+                    if (!checking) new ChaptersModal(this.plugin, palette.child).open();
+                    return true;
+                }
+            }, {
+                id: 'assign-note-chapter',
+                name: '指定当前笔记的章节',
+                checkCallback: checking => {
+                    const file = this.app.workspace.getActiveFile();
+                    if (!file || file.extension !== 'md') return false;
+                    if (!checking) void chooseNoteChapter(this.plugin, file).catch(error => new Notice(String(error)));
+                    return true;
+                }
             }, {
                 id: 'rectangle-note',
                 name: '框选笔记（自动创建）',

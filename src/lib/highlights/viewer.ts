@@ -1,3 +1,4 @@
+import { activateLinkedRectangle } from '../../rectangle-editor';
 import { Component } from 'obsidian';
 
 import { PDFPlusLibSubmodule } from 'lib/submodule';
@@ -102,6 +103,7 @@ export class ViewerHighlightLib extends PDFPlusLibSubmodule {
      */
     highlightRect(child: PDFViewerChild, page: number, rect: Rect) {
         this.clearRectHighlight(child);
+        activateLinkedRectangle(child, page, rect);
 
         if (1 <= page && page <= child.pdfViewer.pagesCount) {
             const pageView = child.getPage(page);

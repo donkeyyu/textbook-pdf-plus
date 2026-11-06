@@ -8,6 +8,7 @@ import ts from 'typescript';
 const notices = [];
 class MarkdownView {}
 class TFile {}
+class TFolder {}
 const template = readFileSync(new URL('../templates/教材框选笔记.md', import.meta.url), 'utf8');
 const code = ts.transpileModule(readFileSync(new URL('../src/color-palette.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
@@ -15,9 +16,10 @@ const code = ts.transpileModule(readFileSync(new URL('../src/color-palette.ts', 
 const context = {
     exports: {}, console: { error() {} },
     require(id) {
-        if (id === 'obsidian') return { TFile, MarkdownView, normalizePath: path => path.replace(/\/+/g, '/'), Notice: class { constructor(message) { notices.push(message); } } };
+        if (id === 'obsidian') return { TFile, TFolder, MarkdownView, normalizePath: path => path.replace(/\/+/g, '/'), Notice: class { constructor(message) { notices.push(message); } } };
         if (id === 'lib/component') return { PDFPlusComponent: class {} };
         if (id === 'utils') return {};
+        if (id === './chapters/store') return { rectangleMetadata: async (_plugin, _pdf, _doc, _page, _rect, content) => content };
         throw new Error(`Unexpected import: ${id}`);
     }
 };
@@ -33,7 +35,8 @@ function host({ saveFails = false, openFails = false, templateMissing = false, t
         editor: { lastLine: () => 4, setCursor: () => events.push('cursor'), focus: () => events.push('focus') }
     });
     return {
-        events, child: { file: pdf }, selectedColorName: null,
+        events, child: { file: pdf, pdfViewer: { pdfViewer: { pdfDocument: {} } } }, selectedColorName: null,
+        plugin: { settings: { textbookNoteFolder: '', textbookNoteTemplate: 'Templates/教材框选笔记.md' } },
         app: {
             vault: {
                 getAbstractFileByPath: () => templateMissing ? null : new TFile(),
@@ -41,7 +44,7 @@ function host({ saveFails = false, openFails = false, templateMissing = false, t
             },
             fileManager: {
                 generateMarkdownLink: file => `[[${file.path}]]`,
-                getNewFileParent: () => ({ path: 'notes' }),
+                getNewFileParent: () => Object.assign(new TFolder(), { path: 'notes' }),
                 async createNewMarkdownFile(folder, name, content) {
                     if (saveFails) throw new Error('disk full');
                     events.push({ folder, name, content });
@@ -95,4 +98,21 @@ test('edited template applies on the next selection; missing template does not c
     await createNote.call(missing, 12, [1, 2, 3, 4]);
     assert.deepEqual(missing.events, []);
     assert.match(notices[0], /找不到模板/);
+});
+
+test('configured note folder is created and used; paths outside the vault are rejected', async () => {
+    const h = host();
+    h.plugin.settings.textbookNoteFolder = 'notes';
+    let folder;
+    const originalLookup = h.app.vault.getAbstractFileByPath;
+    h.app.vault.getAbstractFileByPath = path => path === 'notes' ? folder : originalLookup(path);
+    h.app.vault.createFolder = async path => { folder = Object.assign(new TFolder(), { path }); };
+    await createNote.call(h, 12, [1, 2, 3, 4]);
+    assert.equal(h.events[0].folder, folder);
+    const invalid = host();
+    invalid.plugin.settings.textbookNoteFolder = '../outside';
+    notices.length = 0;
+    await createNote.call(invalid, 12, [1, 2, 3, 4]);
+    assert.deepEqual(invalid.events, []);
+    assert.match(notices[0], /库内相对路径/);
 });

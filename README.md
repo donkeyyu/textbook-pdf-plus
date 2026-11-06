@@ -2,7 +2,16 @@
 
 This local fork adds **框选笔记** to the PDF toolbar. Click it, drag from the
 upper-left to the lower-right, and a Markdown note opens beside the PDF.
-The note uses `Templates/教材框选笔记.md` in the vault. Copy the supplied
+Open **教材笔记管理** from the command palette (or the PDF++ settings) to
+choose the default note folder and template. A blank folder follows Obsidian’s
+new-note location; a configured vault-relative folder is created when needed.
+The management section accepts an OpenAI-compatible Responses API Base URL
+and model ID (`api_url`, `model_name`). Enter `api_key` in the password field
+and click 保存密钥; it uses Obsidian SecretStorage (1.11.4+), never plugin data.json.
+The key is not echoed back; 清除密钥 clears the stored value. These settings do not
+make network requests by themselves. Live provider compatibility must be checked
+with a user-configured key; automated tests use a simulated Responses endpoint.
+The default template is `Templates/教材框选笔记.md` in the vault. Copy the supplied
 `templates/教材框选笔记.md` there when installing this build. Editing that file
 changes future notes without a restart. Keep its region and return-link placeholders
 to retain the marked PDF region. The template adds editable `content_type`
@@ -24,6 +33,48 @@ The current editor supports one associated note per rectangle; shared regions
 and frontmatter region links are rejected without writing. Stale Markdown ranges
 are also rejected so concurrent edits cannot overwrite unrelated text.
 
+Chapter indexing: focus the PDF and run **教材章节管理（提取与校正）**.
+Read its native outline locally, or explicitly send a selected page range to the
+configured Responses endpoint. AI receives text and line positions in batches of
+six pages. Returned titles must match a source line; image-only pages require OCR
+outside this plugin. This validation does not replace checking the original pages.
+Partial extraction ends at the selected last page; it does not index unread pages.
+
+Review chapter names, parent chapters, and physical PDF page/vertical boundaries,
+then choose **预览保存**. The preview lists affected notes before confirmation.
+Textbook notes display a top bar in editing and reading modes: click the textbook
+and page to return to the PDF, or click the chapter names to change the association.
+The bar uses `printed_page` when filled; otherwise it explicitly labels PDF page
+numbers. Navigation always uses the physical PDF page. Existing open PDF panes are
+reused. Technical IDs, coordinates, index paths, assignment flags and duplicate
+chapter name properties are hidden in the note properties UI, but remain in Markdown
+and are available in source mode. Other notes and editable learning properties are
+unaffected. Conflicts and missing associations appear as plain-language hints.
+
+Indexes live in `教材索引/<PDF SHA-256>.json` inside the vault. Chapters have stable
+IDs; renaming updates note title properties without changing IDs or prose.
+Re-extraction adds candidates and preserves existing manual corrections. PDF content
+changes produce a separate index; they do not silently migrate old annotations.
+
+New rectangles and moves/resizes write `textbook_id`, `textbook_index`, `chapter_id`,
+`section_id`, title snapshots, coordinates, and assignment status into note properties.
+Cross-boundary regions are marked `ambiguous`; absent indexes are `unindexed`.
+Run **指定当前笔记的章节** on a note to choose a manual association or return to
+automatic matching. Manual IDs survive movement; incompatible positions are marked
+`conflict`, and deleted chapter IDs are marked `missing`. Removing a rectangle keeps
+the note and page link, clears its region coordinates, and marks `region_removed`.
+Existing notes without region metadata acquire it when their rectangle is adjusted.
+Index and note writes reject concurrent edits rather than overwrite newer changes.
+
+Local validation: build and affected-file ESLint passed; automated tests cover
+boundary matching, renaming/re-extraction, manual conflicts, persisted indexes,
+Responses payload/output validation, note creation, moves, and deletion. The
+optional `TEXTBOOK_PDF` environment variable enables a real-PDF text/outline smoke
+test. `node tests/create-chapter-fixture.mjs /path/to/test-vault/fixture.pdf` creates
+a two-page fixture. Native Obsidian testing verified outline extraction/save,
+automatic rectangle association, rename preview/update with unchanged ID, and
+movement into another section. No live AI service was called.
+
 Source baseline: `6a3218b9c506076b405438489e614bc9e22b833b` (PDF++ 0.40.31).
 Only the isolated `pdf-plus-path-validation` vault receives this local build.
 Upstream plugin updates can replace it; the editable source is in this repository.
@@ -33,7 +84,7 @@ Build with the checked-in dependency lock:
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
 npm run build
-node --test tests/rectangle-note.test.mjs
+node --test tests/*.test.mjs
 ```
 
 The patch also handles a missing Page Preview override map in newer Obsidian

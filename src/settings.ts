@@ -247,6 +247,10 @@ export interface PDFPlusSettings {
 	copyOutlineAsHeadingsMinLevel: number;
 	newFileNameFormat: string;
 	newFileTemplatePath: string;
+	textbookNoteFolder: string;
+	textbookNoteTemplate: string;
+	textbookAIBaseUrl: string;
+	textbookAIModel: string;
 	newPDFLocation: NewFileLocation;
 	newPDFFolderPath: string;
 	rectEmbedStaticImage: boolean;
@@ -534,6 +538,10 @@ export const DEFAULT_SETTINGS: PDFPlusSettings = {
 	copyOutlineAsHeadingsMinLevel: 2,
 	newFileNameFormat: '',
 	newFileTemplatePath: '',
+	textbookNoteFolder: '',
+	textbookNoteTemplate: 'Templates/教材框选笔记.md',
+	textbookAIBaseUrl: '',
+	textbookAIModel: '',
 	newPDFLocation: 'current',
 	newPDFFolderPath: '',
 	rectEmbedStaticImage: false,
@@ -1625,6 +1633,57 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 			}
 		});
 
+
+		this.addHeading('教材笔记管理', 'textbook-notes', 'lucide-book-open');
+		this.addTextSetting('textbookNoteFolder', '例如：教材笔记/数学')
+			.setName('默认笔记存放位置')
+			.setDesc('填写库内文件夹路径，不存在时自动创建。留空沿用 Obsidian 的新建笔记位置；只影响以后创建的框选笔记。');
+		this.addTextSetting('textbookNoteTemplate', 'Templates/教材框选笔记.md')
+			.setName('框选笔记模板')
+			.setDesc('库内 Markdown 模板路径。修改后从下一次框选起生效。');
+
+		this.addDesc('打开 PDF 后，通过命令面板进入“教材章节管理（提取与校正）”；在笔记中使用“指定当前笔记的章节”处理待确认归属。');
+		this.addDesc('章节识别 · OpenAI-compatible Responses API');
+		this.addTextSetting('textbookAIBaseUrl', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
+			.setName('api_url')
+			.setDesc('API 基础地址，不含 /responses。只在章节管理中点击发送提取时调用。');
+		this.addTextSetting('textbookAIModel', 'deepseek-v4.1-flash-1017')
+			.setName('model_name')
+			.setDesc('填写服务商提供的完整模型 ID。模型需要支持 Responses API 和文字输入。');
+
+		// Runtime check keeps the PDF workflow usable with the older supported host API.
+		const secrets = (this.app as typeof this.app & { secretStorage?: {
+			getSecret(id: string): string | null;
+			setSecret(id: string, value: string): void;
+		} }).secretStorage;
+		const secretId = 'textbook-pdf-plus-api-key';
+		let keyInput: TextComponent;
+		this.addSetting()
+			.setName('api_key')
+			.setDesc(secrets ? '密钥保存在 Obsidian SecretStorage，不写入插件配置文件。输入后点击保存；已保存的密钥不回显。' : '保存密钥需要 Obsidian 1.11.4 或更新版本。')
+			.addText(text => {
+				keyInput = text;
+				text.inputEl.type = 'password';
+				text.inputEl.autocomplete = 'off';
+				text.setPlaceholder(secrets?.getSecret(secretId) ? '已保存；输入新密钥可替换' : '输入 API Key');
+				text.setDisabled(!secrets);
+			})
+			.addButton(button => button.setButtonText('保存密钥').setDisabled(!secrets).onClick(() => {
+				const value = keyInput.getValue().trim();
+				if (!value || !secrets) { new Notice('请先输入 API Key'); return; }
+				try {
+					secrets.setSecret(secretId, value);
+					keyInput.setValue('').setPlaceholder('已保存；输入新密钥可替换');
+					new Notice('API Key 已保存');
+				} catch { new Notice('API Key 保存失败，请重试'); }
+			}))
+			.addButton(button => button.setButtonText('清除密钥').setDisabled(!secrets).onClick(() => {
+				try {
+					secrets?.setSecret(secretId, '');
+					keyInput.setValue('').setPlaceholder('输入 API Key');
+					new Notice('API Key 已清除');
+				} catch { new Notice('API Key 清除失败，请重试'); }
+			}));
 
 		this.addHeading('Editing PDF files', 'edit', 'lucide-save')
 			.then((setting) => {

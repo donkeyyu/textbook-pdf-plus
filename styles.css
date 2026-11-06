@@ -744,3 +744,17 @@ body.pdf-plus-vim-hint-inverted {
 .pdf-plus-color-palette .pdf-plus-display-text-format-menu {
     display: none;
 }
+
+.textbook-chapters-modal { width: min(850px, 95vw); }
+.textbook-chapter-row { border-top: 1px solid var(--background-modifier-border); padding: 12px 0; }
+.textbook-chapter-row small { color: var(--text-muted); overflow-wrap: anywhere; }
+.textbook-chapter-row input[type=number] { width: 85px; }
+.textbook-index-status { color: var(--text-muted); overflow-wrap: anywhere; }
+
+/* Keep storage metadata in Markdown, but out of the student's properties UI. */
+.textbook-note-view .metadata-property:is([data-property-key="textbook_id"], [data-property-key="textbook_index"], [data-property-key="pdf_rect"], [data-property-key="region_top"], [data-property-key="region_bottom"], [data-property-key="chapter_id"], [data-property-key="section_id"], [data-property-key="chapter_assignment"], [data-property-key="chapter_status"], [data-property-key="chapter_title"], [data-property-key="section_title"]) { display: none; }
+.textbook-note-header { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 16px; border-bottom: 1px solid var(--background-modifier-border); }
+.textbook-note-header button { height: auto; white-space: normal; text-align: left; box-shadow: none; background: transparent; padding: 4px 6px; overflow-wrap: anywhere; }
+.textbook-note-header .textbook-note-location { color: var(--text-accent); }
+.textbook-note-header .textbook-note-chapter { color: var(--text-normal); }
+.textbook-note-status { flex-basis: 100%; color: var(--text-muted); font-size: var(--font-smallest); }

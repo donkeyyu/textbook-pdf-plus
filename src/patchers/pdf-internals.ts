@@ -1,3 +1,4 @@
+import { clearPendingRectangle } from '../rectangle-editor';
 import { Component, MarkdownRenderer, Notice, TFile, debounce, setIcon, setTooltip, Keymap, Menu, Platform, requireApiVersion, apiVersion } from 'obsidian';
 import { around } from 'monkey-around';
 import { PDFDocumentProxy } from 'pdfjs-dist';
@@ -551,6 +552,7 @@ const patchPDFViewerChild = (plugin: PDFPlus, child: PDFViewerChild) => {
          */
         applySubpath(old) {
             return function (this: PDFViewerChild, subpath?: string) {
+                clearPendingRectangle(this);
                 const _parseInt = (num: string) => {
                     if (!num) return null;
                     const parsed = parseInt(num);

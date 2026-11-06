@@ -1,3 +1,4 @@
+import { registerNoteHeaders } from './chapters/note-header';
 import { Constructor, EventRef, Events, FileSystemAdapter, Keymap, Menu, Notice, ObsidianProtocolData, PaneType, Platform, Plugin, SettingTab, TFile, addIcon, apiVersion, loadPdfJs, requireApiVersion } from 'obsidian';
 import * as pdflib from '@cantoo/pdf-lib';
 
@@ -116,6 +117,7 @@ export default class PDFPlus extends Plugin {
 		this.registerEvents();
 
 		this.startTrackingActiveMarkdownFile();
+		registerNoteHeaders(this);
 
 		this.registerObsidianProtocolHandler('pdf-plus', this.obsidianProtocolHandler.bind(this));
 
