@@ -1,4 +1,5 @@
 import { registerNoteHeaders } from './chapters/note-header';
+import { CHAPTER_VIEW_TYPE, ChapterSidebarView } from './chapters/sidebar';
 import { Constructor, EventRef, Events, FileSystemAdapter, Keymap, Menu, Notice, ObsidianProtocolData, PaneType, Platform, Plugin, SettingTab, TFile, addIcon, apiVersion, loadPdfJs, requireApiVersion } from 'obsidian';
 import * as pdflib from '@cantoo/pdf-lib';
 
@@ -118,6 +119,7 @@ export default class PDFPlus extends Plugin {
 
 		this.startTrackingActiveMarkdownFile();
 		registerNoteHeaders(this);
+		this.registerView(CHAPTER_VIEW_TYPE, leaf => new ChapterSidebarView(leaf, this));
 
 		this.registerObsidianProtocolHandler('pdf-plus', this.obsidianProtocolHandler.bind(this));
 

@@ -11,13 +11,14 @@ function selectRectangle(el: HTMLElement) {
     el.classList.add('pdf-plus-rect-selected');
 }
 export function clearPendingRectangle(child: PDFViewerChild) { pendingRectangle.delete(child); }
+// The pending target outlives the first match: on first open the viewer redraws its boxes,
+// and the redrawn box must be selected again. User clicks, Escape and new links clear it.
 export function activateLinkedRectangle(child: PDFViewerChild, page: number, rect: Rect) {
     pendingRectangle.set(child, { page, rect });
     const elements = child.getPage(page)?.div.querySelectorAll<HTMLElement>('[data-textbook-rect]') ?? [];
     for (const el of elements) {
         if (sameRectangle(JSON.parse(el.dataset.textbookRect!), rect)) {
             selectRectangle(el);
-            pendingRectangle.delete(child);
             break;
         }
     }
@@ -57,25 +58,37 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         if (busy) return;
         busy = true;
         try {
-            const paths = new Set([...caches].map(cache => cache.sourcePath));
-            if (paths.size !== 1) throw new Error('此框关联多篇笔记，暂不支持调整');
-            const file = app.vault.getAbstractFileByPath([...paths][0]);
-            if (!(file instanceof TFile)) throw new Error('关联笔记不存在');
-            const refs = [...caches].map(({ refCache }) => {
-                if (!('position' in refCache)) throw new Error('属性中的区域链接暂不支持调整');
-                return { start: refCache.position.start.offset, end: refCache.position.end.offset, original: refCache.original };
-            });
-            const before = await app.vault.read(file);
-            let after = rewriteRectangleLinks(before, refs, next);
-            if (next) {
-                const document = visualizer.child.pdfViewer.pdfViewer?.pdfDocument;
-                if (!document) throw Error('教材尚未加载完成');
-                after = await rectangleMetadata(visualizer.plugin, visualizer.file, document, pageNumber, next, after);
-            } else after = withProperties(after, { pdf_rect: null, region_top: null, region_bottom: null, chapter_status: 'region_removed' });
-            await app.vault.process(file, current => {
-                if (current !== before) throw Error('笔记已更改，请稍后重试');
-                return after;
-            });
+            // Prepare every linked note before writing any, so a stale or unsupported note stops the whole change.
+            const byPath = new Map<string, PDFBacklinkCache[]>();
+            for (const cache of caches) byPath.set(cache.sourcePath, [...byPath.get(cache.sourcePath) ?? [], cache]);
+            const changes: { file: TFile; before: string; after: string }[] = [];
+            for (const [path, group] of byPath) {
+                const file = app.vault.getAbstractFileByPath(path);
+                if (!(file instanceof TFile)) throw new Error('关联笔记不存在');
+                const refs = group.map(({ refCache }) => {
+                    if (!('position' in refCache)) throw new Error('属性中的区域链接暂不支持调整');
+                    return { start: refCache.position.start.offset, end: refCache.position.end.offset, original: refCache.original };
+                });
+                const before = await app.vault.read(file);
+                let after = rewriteRectangleLinks(before, refs, next);
+                if (next) {
+                    const document = visualizer.child.pdfViewer.pdfViewer?.pdfDocument;
+                    if (!document) throw Error('教材尚未加载完成');
+                    after = await rectangleMetadata(visualizer.plugin, visualizer.file, document, pageNumber, next, after);
+                } else after = withProperties(after, { pdf_rect: null, region_top: null, region_bottom: null, chapter_status: 'region_removed' });
+                changes.push({ file, before, after });
+            }
+            const failed: string[] = [];
+            for (const { file, before, after } of changes) {
+                try {
+                    await app.vault.process(file, current => {
+                        if (current !== before) throw Error('笔记已更改，请稍后重试');
+                        return after;
+                    });
+                } catch { failed.push(file.basename); }
+            }
+            if (failed.length === changes.length) throw Error('笔记已更改，请稍后重试');
+            if (failed.length) new Notice(`以下笔记已更改，未同步此框：${failed.join('、')}`);
             if (next) { rect = next; paint(next); }
             else el.remove();
         } catch (error) {
@@ -95,10 +108,7 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         hitArea.setAttribute('aria-label', '拖动边线调整大小');
     }
     const pending = pendingRectangle.get(visualizer.child);
-    if (pending?.page === pageNumber && sameRectangle(initial, pending.rect)) {
-        select();
-        pendingRectangle.delete(visualizer.child);
-    }
+    if (pending?.page === pageNumber && sameRectangle(initial, pending.rect)) select();
     el.title = '拖动框内移动 · 拖动边线或圆点调整大小 · 双击打开笔记';
     el.addEventListener('pointerdown', event => {
         if (event.button !== 0 || busy) return;
@@ -168,10 +178,12 @@ export function attachRectangleEditor(visualizer: PDFViewerBacklinkVisualizer, e
         new Menu().addItem(item => item.setTitle('删除框选（保留笔记）').setIcon('trash').onClick(() => { void save(null); })).showAtMouseEvent(event);
     }, true);
     const escape = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') { cancelDrag?.(); el.classList.remove('pdf-plus-rect-selected'); }
+        if (event.key === 'Escape') { cancelDrag?.(); el.classList.remove('pdf-plus-rect-selected'); pendingRectangle.delete(visualizer.child); }
     };
     const deselect = (event: PointerEvent) => {
-        if (!el.contains(event.target as Node)) el.classList.remove('pdf-plus-rect-selected');
+        if (el.contains(event.target as Node)) return;
+        el.classList.remove('pdf-plus-rect-selected');
+        pendingRectangle.delete(visualizer.child);
     };
     doc.addEventListener('pointerdown', deselect);
     doc.addEventListener('keydown', escape);

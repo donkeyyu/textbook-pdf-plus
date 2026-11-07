@@ -19,7 +19,7 @@ const context = {
         if (id === 'obsidian') return { TFile, TFolder, MarkdownView, normalizePath: path => path.replace(/\/+/g, '/'), Notice: class { constructor(message) { notices.push(message); } } };
         if (id === 'lib/component') return { PDFPlusComponent: class {} };
         if (id === 'utils') return {};
-        if (id === './chapters/store') return { rectangleMetadata: async (_plugin, _pdf, _doc, _page, _rect, content) => content };
+        if (id === './chapters/store') return { frontmatter: content => ({ properties: /section_title: (.+)/.exec(content) ? { section_title: /section_title: (.+)/.exec(content)[1] } : {} }), rectangleMetadata: async (_plugin, _pdf, _doc, _page, _rect, content) => content };
         throw new Error(`Unexpected import: ${id}`);
     }
 };
@@ -73,6 +73,7 @@ test('saving a rectangle creates one note with visible backlink and focuses its 
     assert.match(h.events[0].content, /rect=20,31,80,100&color=yellow/);
     assert.match(h.events[0].content, /\n\n\[\[books\/math.pdf/);
     assert.equal(h.events.filter(e => typeof e === 'object').length, 1);
+    assert.equal(h.events[0].name, 'math · 第12页');
     assert.deepEqual(h.events.slice(1), ['notes/math - 第12页笔记.md', 'editable', 'cursor', 'focus']);
 });
 test('save failure does not open an unsaved note; open failure reports the saved path', async () => {

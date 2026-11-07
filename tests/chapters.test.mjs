@@ -16,7 +16,7 @@ function load(name, imports = {}) {
     return context.exports;
 }
 const model = load('model');
-const store = load('store', { './model': model, obsidian: { TFile, parseYaml: yaml.load, stringifyYaml: yaml.dump, requestUrl: () => { throw Error('Live network must not be called by tests'); } } });
+const store = load('store', { './model': model, obsidian: { TFile, normalizePath: path => path.replace(/\/+/g, '/').replace(/^\/|\/$/g, ''), parseYaml: yaml.load, stringifyYaml: yaml.dump, requestUrl: () => { throw Error('Live network must not be called by tests'); } } });
 const pos = (page, y) => ({ page, y });
 const chapters = [
     { id: 'c1', title: '章一', source_title: '章一', level: 1, parent_id: null, start: pos(1, 0), end: pos(3, 1), source: 'outline' },
@@ -106,8 +106,8 @@ test('persisted index survives reload and stale writes are blocked atomically', 
 test('rectangle metadata normalizes PDF coordinates and preserves source links', async () => {
     const pdf = new TFile('book.pdf');
     const doc = { numPages: 3, getPage: async () => ({ view: [0, 0, 100, 100] }) };
-    const app = { vault: { readBinary: async () => new TextEncoder().encode('book').buffer, getAbstractFileByPath: () => null } };
-    const out = await store.rectangleMetadata({ app }, pdf, doc, 2, [10, 60, 80, 80], '![[book.pdf#page=2&rect=10,60,80,80]]\n');
+    const app = { vault: { readBinary: async () => new TextEncoder().encode('book').buffer, getAbstractFileByPath: () => null, getFiles: () => [] } };
+    const out = await store.rectangleMetadata({ app, settings: { textbookIndexFolder: '' } }, pdf, doc, 2, [10, 60, 80, 80], '![[book.pdf#page=2&rect=10,60,80,80]]\n');
     const { properties, body } = store.frontmatter(out);
     assert.equal(properties.region_top, .2);
     assert.equal(properties.region_bottom, .4);
@@ -139,7 +139,55 @@ test('partial extraction does not extend the final heading past selected pages',
     assert.equal(model.matchRegion(nodes, pos(13, 0), pos(13, .2)).status, 'unassigned');
 });
 
-const { noteLocation } = load('note-header', { obsidian: {}, './panel': {} });
+const { noteLocation } = load('note-header', { obsidian: {}, './store': store, './suggest-modal': {} });
+test('moving a legacy rectangle supplies the textbook needed by its header', async () => {
+    const pdf = new TFile('教材/数学.pdf');
+    const doc = { numPages: 3, getPage: async () => ({ view: [0, 0, 100, 100] }) };
+    const app = { vault: { readBinary: async () => new TextEncoder().encode('book').buffer, getAbstractFileByPath: () => null, getFiles: () => [] } };
+    const body = '![[教材/数学.pdf#page=2&rect=10,60,80,80]]\nOld note body.\n';
+    const updated = await store.rectangleMetadata({ app, settings: { textbookIndexFolder: '教材索引' } }, pdf, doc, 2, [10, 60, 80, 80], body);
+    const parsed = store.frontmatter(updated);
+    assert.equal(noteLocation(parsed.properties)?.link, '教材/数学.pdf#page=2');
+    assert.equal(parsed.body, body);
+});
+test('chapter selection uses the current note, so body edits made after opening do not block it', async () => {
+    const note = new TFile('note.md'), indexFile = new TFile('index.json');
+    let content = store.withProperties('Keep my prose.\n', { textbook_id: 'book_one', textbook_index: 'index.json', pdf_page: 2, region_top: .6, region_bottom: .7 });
+    const app = { vault: {
+        getAbstractFileByPath: () => indexFile,
+        read: async file => file === indexFile ? JSON.stringify(index) : content,
+        process: async (_file, update) => { content = update(content); },
+    } };
+    content += 'Typed after the header loaded.\n';
+    await store.saveNoteChapter(app, note, 's1');
+    assert.equal(store.frontmatter(content).properties.section_id, 's1');
+    assert.equal(store.frontmatter(content).properties.chapter_status, 'conflict');
+    assert.match(content, /Typed after the header loaded/);
+    await assert.rejects(store.saveNoteChapter(app, note, 'removed'), /章节已移除/);
+    const process = app.vault.process;
+    app.vault.process = async (file, update) => { content = content.replace('book_one', 'book_two'); return process(file, update); };
+    await assert.rejects(store.saveNoteChapter(app, note, ''), /其他教材/);
+    content = content.replace('book_two', 'book_one'); app.vault.process = process;
+    await store.saveNoteChapter(app, note, '');
+    const parsed = store.frontmatter(content);
+    assert.equal(parsed.properties.chapter_assignment, 'auto');
+    assert.equal(parsed.properties.section_id, 's2');
+    assert.equal(parsed.body, 'Keep my prose.\nTyped after the header loaded.\n');
+});
+test('property writes keep comments, order, quoting and nested values of other keys', () => {
+    const source = '---\n# my comment\n"_textbook":\n  "id": "x"\n  "anchors":\n    - "pdf_page": 3\ntags:\n- a\n- b\ncontent_type: 知识点 # inline\n---\nBody\n';
+    const result = store.withProperties(source, { content_type: '习题', tags: ['c'], pdf_page: 4 });
+    assert.equal(result, '---\n# my comment\n"_textbook":\n  "id": "x"\n  "anchors":\n    - "pdf_page": 3\ntags:\n  - c\ncontent_type: 习题\npdf_page: 4\n---\nBody\n');
+    assert.equal(store.withProperties('Plain body\n', { a: 1 }), '---\na: 1\n---\nPlain body\n');
+    assert.equal(store.withProperties(result, { '_textbook': null }).includes('"anchors"'), false);
+});
+test('indexes are found by content hash after moving them to another folder', () => {
+    const hash = 'a'.repeat(64);
+    const moved = new TFile(`我的索引/${hash}.json`); moved.extension = 'json'; moved.basename = hash;
+    const app = { vault: { getAbstractFileByPath: path => path === moved.path ? moved : null, getFiles: () => [moved] } };
+    assert.equal(store.locateIndex(app, `教材索引/${hash}.json`, `book_${hash.slice(0, 24)}`), moved.path);
+    assert.equal(store.locateIndex(app, `教材索引/${'b'.repeat(64)}.json`), `教材索引/${'b'.repeat(64)}.json`);
+});
 test('student header shows readable names, distinguishes printed pages, and retains physical navigation', () => {
     const properties = { textbook: '[[教材/数学.pdf|数学]]', pdf_page: 12, chapter_title: '有理数', section_title: '正数和负数', chapter_id: 'internal', section_id: 'secret', chapter_status: 'conflict' };
     const location = noteLocation(properties);

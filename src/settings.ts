@@ -249,6 +249,8 @@ export interface PDFPlusSettings {
 	newFileTemplatePath: string;
 	textbookNoteFolder: string;
 	textbookNoteTemplate: string;
+	textbookIndexFolder: string;
+	textbookAISendImage: boolean;
 	textbookAIBaseUrl: string;
 	textbookAIModel: string;
 	newPDFLocation: NewFileLocation;
@@ -540,6 +542,8 @@ export const DEFAULT_SETTINGS: PDFPlusSettings = {
 	newFileTemplatePath: '',
 	textbookNoteFolder: '',
 	textbookNoteTemplate: 'Templates/教材框选笔记.md',
+	textbookIndexFolder: '教材索引',
+	textbookAISendImage: true,
 	textbookAIBaseUrl: '',
 	textbookAIModel: '',
 	newPDFLocation: 'current',
@@ -1642,7 +1646,10 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 			.setName('框选笔记模板')
 			.setDesc('库内 Markdown 模板路径。修改后从下一次框选起生效。');
 
-		this.addDesc('打开 PDF 后，通过命令面板进入“教材章节管理（提取与校正）”；在笔记中使用“指定当前笔记的章节”处理待确认归属。');
+		this.addTextSetting('textbookIndexFolder', '教材索引')
+			.setName('章节索引文件夹')
+			.setDesc('新建章节索引保存到此库内文件夹。已有索引按文件名（教材内容哈希）查找，移动位置后仍可使用。');
+		this.addDesc('打开 PDF 后，通过命令面板进入“教材章节管理（提取与校正）”；笔记顶部栏可修改所属章节和类型。命令“打开教材章节侧栏”按章节浏览笔记，“导入课本解读笔记”迁移桌面版笔记库。');
 		this.addDesc('章节识别 · OpenAI-compatible Responses API');
 		this.addTextSetting('textbookAIBaseUrl', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
 			.setName('api_url')
@@ -1650,6 +1657,9 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 		this.addTextSetting('textbookAIModel', 'deepseek-v4.1-flash-1017')
 			.setName('model_name')
 			.setDesc('填写服务商提供的完整模型 ID。模型需要支持 Responses API 和文字输入。');
+		this.addToggleSetting('textbookAISendImage')
+			.setName('AI 笔记建议附带框选图片')
+			.setDesc('开启后同时发送框选区域图片，便于识别公式和图形；模型须支持图片输入。关闭后只发送框内文字。');
 
 		// Runtime check keeps the PDF workflow usable with the older supported host API.
 		const secrets = (this.app as typeof this.app & { secretStorage?: {

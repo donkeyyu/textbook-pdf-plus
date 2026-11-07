@@ -29,8 +29,9 @@ to resize both adjacent edges. Escape cancels an
 active drag. Double-click still opens the note. Right-click → **删除框选（保留笔记）**
 removes the region preview and converts its return link to a page-only link,
 keeping the note body. Moves and resizes update both links in the Markdown file.
-The current editor supports one associated note per rectangle; shared regions
-and frontmatter region links are rejected without writing. Stale Markdown ranges
+When several notes link to the same box, moves and deletions update all of them;
+each note is checked before any is written. Frontmatter region links are rejected
+without writing. Stale Markdown ranges
 are also rejected so concurrent edits cannot overwrite unrelated text.
 
 Chapter indexing: focus the PDF and run **教材章节管理（提取与校正）**.
@@ -43,7 +44,12 @@ Partial extraction ends at the selected last page; it does not index unread page
 Review chapter names, parent chapters, and physical PDF page/vertical boundaries,
 then choose **预览保存**. The preview lists affected notes before confirmation.
 Textbook notes display a top bar in editing and reading modes: click the textbook
-and page to return to the PDF, or click the chapter names to change the association.
+and page to return to the PDF, use the chapter dropdown to change the association
+or restore automatic matching, and set `content_type` / `note_type` from two selects.
+The dropdown reads the current note when saving, so edits typed after opening the
+note do not block it. Without a saved index, the dropdown prompts you to
+create one. Moving or resizing legacy rectangles also fills the missing textbook
+link needed to display this bar and hide technical properties.
 The bar uses `printed_page` when filled; otherwise it explicitly labels PDF page
 numbers. Navigation always uses the physical PDF page. Existing open PDF panes are
 reused. Technical IDs, coordinates, index paths, assignment flags and duplicate
@@ -51,7 +57,9 @@ chapter name properties are hidden in the note properties UI, but remain in Mark
 and are available in source mode. Other notes and editable learning properties are
 unaffected. Conflicts and missing associations appear as plain-language hints.
 
-Indexes live in `教材索引/<PDF SHA-256>.json` inside the vault. Chapters have stable
+Indexes live in `<章节索引文件夹>/<PDF SHA-256>.json` inside the vault (default
+`教材索引`). An existing index is found by its file name, so moving it or changing
+the setting keeps older textbooks indexed. Chapters have stable
 IDs; renaming updates note title properties without changing IDs or prose.
 Re-extraction adds candidates and preserves existing manual corrections. PDF content
 changes produce a separate index; they do not silently migrate old annotations.
@@ -59,21 +67,53 @@ changes produce a separate index; they do not silently migrate old annotations.
 New rectangles and moves/resizes write `textbook_id`, `textbook_index`, `chapter_id`,
 `section_id`, title snapshots, coordinates, and assignment status into note properties.
 Cross-boundary regions are marked `ambiguous`; absent indexes are `unindexed`.
-Run **指定当前笔记的章节** on a note to choose a manual association or return to
+Use the header chapter dropdown to choose a manual association or return to
 automatic matching. Manual IDs survive movement; incompatible positions are marked
 `conflict`, and deleted chapter IDs are marked `missing`. Removing a rectangle keeps
 the note and page link, clears its region coordinates, and marks `region_removed`.
 Existing notes without region metadata acquire it when their rectangle is adjusted.
+Property writes edit only the changed top-level keys; comments, order and quoting
+of other properties are kept. New box notes are named after the matched section
+or chapter, for example `1.1 正数和负数 · 第12页`.
 Index and note writes reject concurrent edits rather than overwrite newer changes.
 
-Local validation: build and affected-file ESLint passed; automated tests cover
+Chapter sidebar: **打开教材章节侧栏** lists the chapters of the active PDF, or of the
+active note's textbook, with note counts. Chapters start collapsed; the active
+note's chapter opens. Click a chapter to open its first PDF page, or a note to open it.
+Notes without a valid chapter appear under 未分章.
+
+AI note suggestions: on a textbook note with a box, click **AI 建议** in the top bar
+or run **AI 生成笔记建议**. The dialog names the service and lists what will be sent:
+the box image (optional setting, needs an image-capable model), the text inside the
+box, chapter names and the note body (first 4000 characters). Nothing is sent until
+**发送并生成建议** is clicked. The prompt follows the textbook-reader
+`textbook-supplements` rules: the title states a conclusion, exercises are not answered.
+Review the title (optional rename), type, knowledge points (`concepts` property as
+`[[links]]` for the graph), and the 理解 / 思路与方法 callouts before
+**写入笔记**. Writing appends to the current note and merges concepts; it never
+replaces existing prose.
+
+Migration from the textbook-reader desktop app: **导入课本解读笔记** (desktop only)
+reads a desktop notes folder without modifying it. It matches each textbook to a vault
+PDF by SHA-256, or copies `source.pdf` when none matches. It builds a chapter index from
+`catalog.json` unless one exists, and copies notes into a vault folder; existing files
+are skipped. `_textbook` metadata is kept and hidden. Anchors become plugin properties
+plus a 返回教材原文 box link. `textbook:` links become PDF box links. Note links gain
+the import folder prefix. Referenced `/initial-diagrams/*.svg` files are copied when
+their source folder is given. Stored chapters become manual assignments only when
+automatic matching disagrees. The `explanation`, `hint` and `personal` callouts are styled.
+
+Local validation: `npm test` runs all tests; build and affected-file ESLint passed; automated tests cover
 boundary matching, renaming/re-extraction, manual conflicts, persisted indexes,
 Responses payload/output validation, note creation, moves, and deletion. The
 optional `TEXTBOOK_PDF` environment variable enables a real-PDF text/outline smoke
 test. `node tests/create-chapter-fixture.mjs /path/to/test-vault/fixture.pdf` creates
 a two-page fixture. Native Obsidian testing verified outline extraction/save,
 automatic rectangle association, rename preview/update with unchanged ID, and
-movement into another section. No live AI service was called.
+movement into another section. Migrating the real 973-note desktop folder into the
+validation vault imported every note with 3 diagrams and an index; all notes matched
+a chapter, and boxes rendered on the PDF. The chapter dropdown worked after typing in
+the note, and the sidebar and AI confirmation dialog rendered. No live AI service was called.
 
 Source baseline: `6a3218b9c506076b405438489e614bc9e22b833b` (PDF++ 0.40.31).
 Only the isolated `pdf-plus-path-validation` vault receives this local build.

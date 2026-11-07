@@ -1,4 +1,4 @@
-import { rectangleMetadata } from './chapters/store';
+import { frontmatter, rectangleMetadata } from './chapters/store';
 import { MarkdownView, Menu, Notice, Platform, TFile, TFolder, normalizePath, setIcon, setTooltip } from 'obsidian';
 
 import PDFPlus from 'main';
@@ -496,7 +496,11 @@ export class ColorPalette extends PDFPlusComponent {
             const doc = this.child.pdfViewer.pdfViewer?.pdfDocument;
             if (!doc) throw new Error('教材尚未加载完成');
             content = await rectangleMetadata(this.plugin, pdf, doc, pageNumber, rect, content);
-            const note = await this.app.fileManager.createNewMarkdownFile(folder, `${pdf.basename} - 第${pageNumber}页笔记`, content);
+            // Name new notes after the matched section so they read well in lists and graphs; AI suggestions can rename them later.
+            const properties = frontmatter(content).properties;
+            const place = [properties.section_title, properties.chapter_title].find(value => typeof value === 'string' && value.trim()) as string | undefined;
+            const name = `${(place ?? pdf.basename).replace(/[\\/:*?"<>|#^[\]]/g, ' ').trim()} · 第${pageNumber}页`;
+            const note = await this.app.fileManager.createNewMarkdownFile(folder, name, content);
             try {
                 await this.lib.workspace.openMarkdownLinkFromPDF(note.path, pdf.path, false);
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);

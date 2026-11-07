@@ -752,9 +752,27 @@ body.pdf-plus-vim-hint-inverted {
 .textbook-index-status { color: var(--text-muted); overflow-wrap: anywhere; }
 
 /* Keep storage metadata in Markdown, but out of the student's properties UI. */
-.textbook-note-view .metadata-property:is([data-property-key="textbook_id"], [data-property-key="textbook_index"], [data-property-key="pdf_rect"], [data-property-key="region_top"], [data-property-key="region_bottom"], [data-property-key="chapter_id"], [data-property-key="section_id"], [data-property-key="chapter_assignment"], [data-property-key="chapter_status"], [data-property-key="chapter_title"], [data-property-key="section_title"]) { display: none; }
+.textbook-note-view .metadata-property:is([data-property-key="textbook_id"], [data-property-key="textbook_index"], [data-property-key="pdf_rect"], [data-property-key="region_top"], [data-property-key="region_bottom"], [data-property-key="chapter_id"], [data-property-key="section_id"], [data-property-key="chapter_assignment"], [data-property-key="chapter_status"], [data-property-key="chapter_title"], [data-property-key="section_title"], [data-property-key="_textbook"], [data-property-key="initial_type"]) { display: none; }
 .textbook-note-header { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 16px; border-bottom: 1px solid var(--background-modifier-border); }
 .textbook-note-header button { height: auto; white-space: normal; text-align: left; box-shadow: none; background: transparent; padding: 4px 6px; overflow-wrap: anywhere; }
 .textbook-note-header .textbook-note-location { color: var(--text-accent); }
-.textbook-note-header .textbook-note-chapter { color: var(--text-normal); }
+.textbook-note-header .textbook-note-chapter { color: var(--text-normal); max-width: 100%; text-overflow: ellipsis; }
 .textbook-note-status { flex-basis: 100%; color: var(--text-muted); font-size: var(--font-smallest); }
+.textbook-note-header select { max-width: 100%; }
+.textbook-note-header .textbook-note-ai { color: var(--text-accent); }
+.textbook-suggestion-text { width: 100%; font-family: var(--font-text); margin-bottom: 8px; resize: vertical; }
+/* Callout types written by textbook-reader notes and AI suggestions. */
+.callout[data-callout="explanation"] { --callout-color: var(--callout-info); --callout-icon: lucide-lightbulb; }
+.callout[data-callout="hint"] { --callout-color: var(--callout-tip); --callout-icon: lucide-compass; }
+.callout[data-callout="personal"] { --callout-color: var(--callout-default); --callout-icon: lucide-pencil; }
+.textbook-sidebar { padding: 8px 10px; font-size: var(--font-ui-small); }
+.textbook-sidebar-head { margin-bottom: 8px; }
+.textbook-sidebar-muted, .textbook-sidebar-empty { color: var(--text-muted); }
+.textbook-sidebar-warn { color: var(--text-warning); font-size: var(--font-ui-smaller); }
+.textbook-sidebar-heading { display: flex; align-items: baseline; gap: 4px; padding: 3px 4px; font-weight: var(--font-semibold); }
+.textbook-sidebar-node.level-2 > .textbook-sidebar-heading { font-weight: var(--font-normal); }
+.textbook-sidebar-toggle { width: 1em; color: var(--text-faint); flex: none; }
+.textbook-sidebar-title { overflow-wrap: anywhere; }
+.textbook-sidebar-children { padding-left: 14px; border-left: 1px solid var(--background-modifier-border); margin-left: 8px; }
+.textbook-sidebar-note { display: block; padding: 3px 4px; }
+.textbook-sidebar-note.is-active { background: var(--background-modifier-active-hover); border-radius: var(--radius-s); }

@@ -1,4 +1,7 @@
-import { ChaptersModal, chooseNoteChapter } from '../chapters/panel';
+import { ChaptersModal } from '../chapters/panel';
+import { MigrationModal } from '../chapters/migrate-modal';
+import { openChapterSidebar } from '../chapters/sidebar';
+import { SuggestionModal, canSuggest } from '../chapters/suggest-modal';
 import { Command, MarkdownView, Notice, TFile, WorkspaceLeaf, normalizePath, setIcon } from 'obsidian';
 
 import { PDFPlusLibSubmodule } from './submodule';
@@ -39,14 +42,22 @@ export class PDFPlusCommands extends PDFPlusLibSubmodule {
                     return true;
                 }
             }, {
-                id: 'assign-note-chapter',
-                name: '指定当前笔记的章节',
+                id: 'textbook-chapter-sidebar',
+                name: '打开教材章节侧栏',
+                callback: () => { void openChapterSidebar(this.plugin); }
+            }, {
+                id: 'textbook-note-suggestion',
+                name: 'AI 生成笔记建议',
                 checkCallback: checking => {
                     const file = this.app.workspace.getActiveFile();
-                    if (!file || file.extension !== 'md') return false;
-                    if (!checking) void chooseNoteChapter(this.plugin, file).catch(error => new Notice(String(error)));
+                    if (!canSuggest(this.plugin, file)) return false;
+                    if (!checking) new SuggestionModal(this.plugin, file!).open();
                     return true;
                 }
+            }, {
+                id: 'textbook-migrate-electron',
+                name: '导入课本解读笔记',
+                callback: () => new MigrationModal(this.plugin).open()
             }, {
                 id: 'rectangle-note',
                 name: '框选笔记（自动创建）',

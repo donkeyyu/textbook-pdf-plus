@@ -1,8 +1,8 @@
-import { Modal, Notice, Setting, TFile } from 'obsidian';
+import { Modal, Notice, Setting } from 'obsidian';
 import type PDFPlus from '../main';
 import type { PDFViewerChild } from '../typings';
 import { Chapter, ChapterIndex, Heading, headingsToChapters, mergeCandidates, validateIndex } from './model';
-import { affectedNotes, frontmatter, indexIdentity, outlineHeadings, pageLines, readIndex, requestHeadings, saveIndex, updateAssignment, withProperties } from './store';
+import { affectedNotes, apiKey, frontmatter, indexIdentity, outlineHeadings, pageLines, readIndex, requestHeadings, saveIndex } from './store';
 
 export class ChaptersModal extends Modal {
     private index: ChapterIndex;
@@ -18,7 +18,7 @@ export class ChaptersModal extends Modal {
         this.titleEl.setText('教材章节管理');
         try {
             const pdf = this.child.file!;
-            const identity = await indexIdentity(this.app, pdf, this.doc.numPages);
+            const identity = await indexIdentity(this.app, pdf, this.doc.numPages, this.plugin.settings.textbookIndexFolder);
             this.path = identity.path;
             const saved = await readIndex(this.app, this.path);
             this.index = saved?.index ?? identity.empty;
@@ -58,8 +58,7 @@ export class ChaptersModal extends Modal {
                 const { first, last } = this;
                 const baseUrl = this.plugin.settings.textbookAIBaseUrl.trim(), model = this.plugin.settings.textbookAIModel.trim();
                 if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last > this.doc.numPages || first > last) throw Error('请选择有效的 PDF 页范围');
-                const secrets = (this.app as typeof this.app & { secretStorage?: { getSecret(id: string): string | null } }).secretStorage;
-                const key = secrets?.getSecret('textbook-pdf-plus-api-key');
+                const key = apiKey(this.app);
                 if (!key) throw Error('请先在教材笔记管理中保存 api_key');
                 this.cancelled = false;
                 const headings: Heading[] = [], emptyPages: number[] = [];
@@ -127,7 +126,7 @@ export class ChaptersModal extends Modal {
                     if (saving) return;
                     saving = true; button.setDisabled(true);
                     try {
-                        const identity = await indexIdentity(this.app, this.child.file!, this.doc.numPages);
+                        const identity = await indexIdentity(this.app, this.child.file!, this.doc.numPages, this.plugin.settings.textbookIndexFolder);
                         if (identity.empty.pdf_sha256 !== draft.pdf_sha256) throw Error('教材已更改，请重新打开章节管理');
                         this.raw = await saveIndex(this.app, this.path, draft, baselineRaw);
                         this.index = draft;
@@ -154,32 +153,4 @@ export class ChaptersModal extends Modal {
         const node: Chapter = { id: crypto.randomUUID(), title: level === 1 ? '新章（请校正范围）' : '新节（请校正范围）', level, parent_id: level === 2 ? parent?.id ?? null : null, start: { page: 1, y: 0 }, end: { page: this.doc.numPages, y: 1 }, source: 'manual' };
         this.index.chapters.push(node); this.render();
     }
-}
-
-export async function chooseNoteChapter(plugin: PDFPlus, note: TFile) {
-    const original = await plugin.app.vault.read(note);
-    const { properties } = frontmatter(original);
-    const path = properties.textbook_index;
-    if (typeof path !== 'string') throw Error('此笔记尚无章节索引关联，请重新框选或调整框体');
-    const saved = await readIndex(plugin.app, path);
-    if (!saved) throw Error('请先在教材章节管理中保存索引');
-    const index = saved.index;
-    if (properties.textbook_id !== index.textbook_id) throw Error('笔记与索引教材不匹配');
-    const modal = new Modal(plugin.app);
-    modal.titleEl.setText('指定笔记章节');
-    let selected = properties.chapter_assignment === 'manual' ? String(properties.section_id || properties.chapter_id || '') : '';
-    new Setting(modal.contentEl).setName(note.basename).setDesc('自动匹配会按框选范围更新。手动指定保留你的选择，位置不符时提示冲突。').addDropdown(dropdown => {
-        dropdown.addOption('', '按位置自动匹配');
-        for (const node of index.chapters) dropdown.addOption(node.id, `${node.level === 2 ? '　' : ''}${node.title}`);
-        dropdown.setValue(selected).onChange(value => selected = value);
-    });
-    new Setting(modal.contentEl).addButton(button => button.setButtonText('保存关联').setCta().onClick(async () => {
-        try {
-            const target = index.chapters.find(node => node.id === selected);
-            const after = updateAssignment(withProperties(original, { chapter_assignment: target ? 'manual' : 'auto', chapter_id: target?.level === 1 ? target.id : target?.parent_id ?? null, section_id: target?.level === 2 ? target.id : null }), index);
-            await plugin.app.vault.process(note, current => { if (current !== original) throw Error('笔记已更改，请重新打开'); return after; });
-            modal.close(); new Notice('笔记关联已保存');
-        } catch (error) { new Notice(String(error)); }
-    }));
-    modal.open();
 }
