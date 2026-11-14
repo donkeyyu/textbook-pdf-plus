@@ -1,4 +1,5 @@
 import { frontmatter, rectangleMetadata } from './chapters/store';
+import { DEFAULT_TEMPLATE_PATH, ensureTemplate } from './chapters/guide';
 import { MarkdownView, Menu, Notice, Platform, TFile, TFolder, normalizePath, setIcon, setTooltip } from 'obsidian';
 
 import PDFPlus from 'main';
@@ -477,10 +478,12 @@ export class ColorPalette extends PDFPlusComponent {
             if (!(folder instanceof TFolder)) throw new Error('笔记存放位置不是文件夹');
             const sourcePath = normalizePath(`${folder.path}/note.md`);
             const embed = this.lib.generateMarkdownLink(pdf, sourcePath, subpath, '返回教材原文');
-            const templatePath = this.plugin.settings.textbookNoteTemplate.trim();
+            const templatePath = normalizePath(this.plugin.settings.textbookNoteTemplate.trim() || DEFAULT_TEMPLATE_PATH);
+            // The default template is created on first use; a missing custom path is likely a typo, so stop and say so.
+            if (templatePath === DEFAULT_TEMPLATE_PATH && await ensureTemplate(this.app, templatePath) === 'created') new Notice(`已创建笔记模板 ${templatePath}`);
             const template = this.app.vault.getAbstractFileByPath(templatePath);
             if (!(template instanceof TFile)) {
-                new Notice(`找不到模板 ${templatePath}，请在教材笔记管理中检查路径。`);
+                new Notice(`找不到模板 ${templatePath}。请在设置“教材笔记管理”中检查路径，或点击“创建默认模板”。`);
                 return;
             }
             const variables: Record<string, string> = {

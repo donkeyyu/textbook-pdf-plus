@@ -1,4 +1,5 @@
 import { registerNoteHeaders } from './chapters/note-header';
+import { TextbookGuideModal } from './chapters/guide';
 import { CHAPTER_VIEW_TYPE, ChapterSidebarView } from './chapters/sidebar';
 import { Constructor, EventRef, Events, FileSystemAdapter, Keymap, Menu, Notice, ObsidianProtocolData, PaneType, Platform, Plugin, SettingTab, TFile, addIcon, apiVersion, loadPdfJs, requireApiVersion } from 'obsidian';
 import * as pdflib from '@cantoo/pdf-lib';
@@ -120,8 +121,9 @@ export default class PDFPlus extends Plugin {
 		this.startTrackingActiveMarkdownFile();
 		registerNoteHeaders(this);
 		this.registerView(CHAPTER_VIEW_TYPE, leaf => new ChapterSidebarView(leaf, this));
+		this.registerTextbookGuide();
 
-		this.registerObsidianProtocolHandler('pdf-plus', this.obsidianProtocolHandler.bind(this));
+		this.registerObsidianProtocolHandler(this.manifest.id, this.obsidianProtocolHandler.bind(this));
 
 		this.addSettingTab(this.settingTab = new PDFPlusSettingTab(this));
 
@@ -316,7 +318,7 @@ export default class PDFPlus extends Plugin {
 			const notice = new Notice('', 0)
 				.setMessage(createFragment((el) => {
 					const linkEl = createEl('a', {
-						href: 'obsidian://pdf-plus?setting=' + settingId
+						href: `obsidian://${this.manifest.id}?setting=` + settingId
 					});
 					el.append('PDF++: ');
 					setMessage(el, linkEl);
@@ -461,6 +463,21 @@ export default class PDFPlus extends Plugin {
 		// See https://github.com/mgmeyers/obsidian-style-settings?tab=readme-ov-file#plugin-support
 		this.app.workspace.trigger('parse-style-settings');
 		this.register(() => this.app.workspace.trigger('parse-style-settings'));
+	}
+
+	// Students find the textbook workflow from one ribbon icon; the guide opens once after installation.
+	private registerTextbookGuide() {
+		this.addRibbonIcon('graduation-cap', '教材学习：开始使用', () => new TextbookGuideModal(this).open());
+		// Both plugins patch the same PDF viewer, so running them together breaks both.
+		this.app.workspace.onLayoutReady(() => {
+			if (this.app.plugins.enabledPlugins.has('pdf-plus')) new Notice('“教材学习”已包含 PDF++ 的全部功能。请在 设置 → 第三方插件 中关闭 PDF++，然后重启 Obsidian。', 0);
+		});
+		if (this.settings.textbookGuideShown) return;
+		this.app.workspace.onLayoutReady(() => {
+			this.settings.textbookGuideShown = true;
+			void this.saveSettings();
+			new TextbookGuideModal(this).open();
+		});
 	}
 
 	private registerRibbonIcons() {

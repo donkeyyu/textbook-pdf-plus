@@ -1,5 +1,6 @@
 import { ChaptersModal } from '../chapters/panel';
 import { MigrationModal } from '../chapters/migrate-modal';
+import { TextbookGuideModal } from '../chapters/guide';
 import { openChapterSidebar } from '../chapters/sidebar';
 import { SuggestionModal, canSuggest } from '../chapters/suggest-modal';
 import { Command, MarkdownView, Notice, TFile, WorkspaceLeaf, normalizePath, setIcon } from 'obsidian';
@@ -28,6 +29,10 @@ export class PDFPlusCommands extends PDFPlusLibSubmodule {
                 id: 'copy-link-to-selection',
                 name: 'Copy link to selection or annotation',
                 checkCallback: (checking) => this.copyLink(checking, false)
+            }, {
+                id: 'textbook-guide',
+                name: '教材学习：开始使用',
+                callback: () => new TextbookGuideModal(this.plugin).open()
             }, {
                 id: 'textbook-note-settings',
                 name: '教材笔记管理',

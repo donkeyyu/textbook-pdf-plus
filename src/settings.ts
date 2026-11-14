@@ -9,6 +9,8 @@ import { ScrollMode, SidebarView, SpreadMode } from 'pdfjs-enums';
 import { Menu } from 'obsidian';
 import { PDFExternalLinkPostProcessor, PDFInternalLinkPostProcessor, PDFOutlineItemPostProcessor, PDFThumbnailItemPostProcessor } from 'post-process';
 import { BibliographyManager } from 'bib';
+import { TextbookGuideModal } from 'chapters/guide';
+import { renderTextbookSettings } from 'chapters/settings-ui';
 
 
 const SELECTION_BACKLINK_VISUALIZE_STYLE = {
@@ -32,6 +34,18 @@ const PANE_TYPE: Record<ExtendedPaneType, string> = {
 	'window': 'New window',
 	'right-sidebar': 'Right sidebar',
 	'left-sidebar': 'Left sidebar'
+};
+
+const STUDENT_PANE_TYPE: Record<ExtendedPaneType, string> = {
+	'': '当前标签页',
+	'tab': '新标签页',
+	'right': '右侧分屏',
+	'left': '左侧分屏',
+	'down': '下方分屏',
+	'up': '上方分屏',
+	'window': '新窗口',
+	'right-sidebar': '右侧边栏',
+	'left-sidebar': '左侧边栏',
 };
 
 const AUTO_FOCUS_TARGETS: Record<AutoFocusTarget, string> = {
@@ -253,6 +267,8 @@ export interface PDFPlusSettings {
 	textbookAISendImage: boolean;
 	textbookAIBaseUrl: string;
 	textbookAIModel: string;
+	textbookGuideShown: boolean;
+	showAdvancedSettings: boolean;
 	newPDFLocation: NewFileLocation;
 	newPDFFolderPath: string;
 	rectEmbedStaticImage: boolean;
@@ -513,11 +529,11 @@ export const DEFAULT_SETTINGS: PDFPlusSettings = {
 	executeCommandWhenTargetNotIdentified: true,
 	commandToExecuteWhenTargetNotIdentified: 'switcher:open',
 	autoPasteTargetDialogTimeoutSec: 20,
-	autoCopyToggleRibbonIcon: true,
+	autoCopyToggleRibbonIcon: false,
 	autoCopyIconName: 'highlighter',
-	autoFocusToggleRibbonIcon: true,
+	autoFocusToggleRibbonIcon: false,
 	autoFocusIconName: 'zap',
-	autoPasteToggleRibbonIcon: true,
+	autoPasteToggleRibbonIcon: false,
 	autoPasteIconName: 'clipboard-paste',
 	viewSyncFollowPageNumber: true,
 	viewSyncPageDebounceInterval: 0.3,
@@ -546,6 +562,8 @@ export const DEFAULT_SETTINGS: PDFPlusSettings = {
 	textbookAISendImage: true,
 	textbookAIBaseUrl: '',
 	textbookAIModel: '',
+	textbookGuideShown: false,
+	showAdvancedSettings: false,
 	newPDFLocation: 'current',
 	newPDFFolderPath: '',
 	rectEmbedStaticImage: false,
@@ -605,7 +623,7 @@ export const DEFAULT_SETTINGS: PDFPlusSettings = {
 	vimHintChars: 'hjklasdfgyuiopqwertnmzxcvb',
 	vimHintArgs: 'all',
 	PATH: '',
-	autoCheckForUpdates: true,
+	autoCheckForUpdates: false,
 	fixObsidianTextSelectionBug: true,
 };
 
@@ -669,7 +687,7 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 						item.setTitle('Copy link to this setting')
 							.setIcon('lucide-link')
 							.onClick(() => {
-								navigator.clipboard.writeText(`obsidian://pdf-plus?setting=${settingName}`);
+								navigator.clipboard.writeText(`obsidian://${this.plugin.manifest.id}?setting=${settingName}`);
 							});
 					})
 					.showAtMouseEvent(evt);
@@ -705,7 +723,7 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 					item.setTitle('Copy link to this heading')
 						.setIcon('lucide-link')
 						.onClick(() => {
-							navigator.clipboard.writeText(`obsidian://pdf-plus?setting=heading:${id}`);
+							navigator.clipboard.writeText(`obsidian://${this.plugin.manifest.id}?setting=heading:${id}`);
 						});
 				})
 				.showAtMouseEvent(evt);
@@ -757,13 +775,23 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 	}
 
 	scrollTo(settingName: keyof PDFPlusSettings, options?: { behavior: ScrollBehavior }) {
+		if (!this.items[settingName]) this.revealAdvancedSettings();
 		const setting = this.items[settingName];
 		if (setting) this.scrollToSetting(setting, options);
 	}
 
 	scrollToHeading(id: string, options?: { behavior: ScrollBehavior }) {
+		if (!this.headings.has(id)) this.revealAdvancedSettings();
 		const setting = this.headings.get(id);
 		if (setting) this.scrollToSetting(setting, options);
+	}
+
+	// Links and notices from PDF++ features may target hidden options; show the full list instead of doing nothing.
+	revealAdvancedSettings() {
+		if (this.plugin.settings.showAdvancedSettings) return;
+		this.plugin.settings.showAdvancedSettings = true;
+		void this.plugin.saveSettings();
+		void this.display();
 	}
 
 	scrollToSetting(setting: Setting, options?: { behavior: ScrollBehavior }) {
@@ -1604,6 +1632,10 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 
 		this.headerContainerEl.empty();
 		this.contentEl.empty();
+		// Simple mode renders fewer settings; stale entries would point scroll targets at removed elements.
+		this.items = {};
+		this.headings.clear();
+		this.headerEls.clear();
 		this.promises = [];
 		this.component.load();
 
@@ -1618,6 +1650,45 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 			);
 		}
 
+
+		this.addHeading('教材笔记管理', 'textbook-notes', 'lucide-book-open');
+		this.addSetting()
+			.setName('使用指南')
+			.setDesc('查看使用步骤，并可直接在指南中完成下面的设置。')
+			.addButton(button => button.setButtonText('打开使用指南').setCta().onClick(() => new TextbookGuideModal(this.plugin).open()));
+		renderTextbookSettings(this.plugin, this.contentEl, () => this.redisplay());
+
+		// Students see the textbook settings plus a few common viewer options; PDF++'s full list stays one toggle away.
+		const advanced = this.plugin.settings.showAdvancedSettings;
+		if (!advanced) {
+			this.addHeading('常用', 'textbook-common', 'lucide-sliders-horizontal');
+			this.addDropdownSetting('paneTypeForFirstMDLeaf', STUDENT_PANE_TYPE)
+				.setName('笔记打开位置')
+				.setDesc('从 PDF 打开笔记、且还没有打开的笔记时，在哪里显示笔记。');
+			const zoom = this.plugin.settings.defaultZoomValue;
+			this.addSetting('defaultZoomValue')
+				.setName('PDF 默认缩放')
+				.addDropdown(dropdown => dropdown
+					.addOptions({ 'page-width': '适应宽度', 'page-height': '适应高度', 'page-fit': '适应整页', ...(zoom.startsWith('page-') ? {} : { [zoom]: `${zoom}%` }) })
+					.setValue(zoom)
+					.onChange(async value => {
+						this.plugin.settings.defaultZoomValue = value;
+						await this.plugin.saveSettings();
+					}));
+		}
+		this.addHeading('高级设置', 'advanced', 'lucide-wrench');
+		this.addSetting('showAdvancedSettings')
+			.setName('显示全部高级选项')
+			.setDesc('显示 PDF++ 原有的全部设置（英文）。一般学习不需要修改。')
+			.addToggle(toggle => toggle.setValue(advanced).onChange(async value => {
+				this.plugin.settings.showAdvancedSettings = value;
+				await this.plugin.saveSettings();
+				this.redisplay();
+			}));
+		if (!advanced) {
+			await Promise.all(this.promises);
+			return;
+		}
 
 		this.contentEl.createDiv('top-note', async (el) => {
 			await this.renderMarkdown([
@@ -1637,63 +1708,6 @@ export class PDFPlusSettingTab extends PluginSettingTab {
 			}
 		});
 
-
-		this.addHeading('教材笔记管理', 'textbook-notes', 'lucide-book-open');
-		this.addTextSetting('textbookNoteFolder', '例如：教材笔记/数学')
-			.setName('默认笔记存放位置')
-			.setDesc('填写库内文件夹路径，不存在时自动创建。留空沿用 Obsidian 的新建笔记位置；只影响以后创建的框选笔记。');
-		this.addTextSetting('textbookNoteTemplate', 'Templates/教材框选笔记.md')
-			.setName('框选笔记模板')
-			.setDesc('库内 Markdown 模板路径。修改后从下一次框选起生效。');
-
-		this.addTextSetting('textbookIndexFolder', '教材索引')
-			.setName('章节索引文件夹')
-			.setDesc('新建章节索引保存到此库内文件夹。已有索引按文件名（教材内容哈希）查找，移动位置后仍可使用。');
-		this.addDesc('打开 PDF 后，通过命令面板进入“教材章节管理（提取与校正）”；笔记顶部栏可修改所属章节和类型。命令“打开教材章节侧栏”按章节浏览笔记，“导入课本解读笔记”迁移桌面版笔记库。');
-		this.addDesc('章节识别 · OpenAI-compatible Responses API');
-		this.addTextSetting('textbookAIBaseUrl', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-			.setName('api_url')
-			.setDesc('API 基础地址，不含 /responses。只在章节管理中点击发送提取时调用。');
-		this.addTextSetting('textbookAIModel', 'deepseek-v4.1-flash-1017')
-			.setName('model_name')
-			.setDesc('填写服务商提供的完整模型 ID。模型需要支持 Responses API 和文字输入。');
-		this.addToggleSetting('textbookAISendImage')
-			.setName('AI 笔记建议附带框选图片')
-			.setDesc('开启后同时发送框选区域图片，便于识别公式和图形；模型须支持图片输入。关闭后只发送框内文字。');
-
-		// Runtime check keeps the PDF workflow usable with the older supported host API.
-		const secrets = (this.app as typeof this.app & { secretStorage?: {
-			getSecret(id: string): string | null;
-			setSecret(id: string, value: string): void;
-		} }).secretStorage;
-		const secretId = 'textbook-pdf-plus-api-key';
-		let keyInput: TextComponent;
-		this.addSetting()
-			.setName('api_key')
-			.setDesc(secrets ? '密钥保存在 Obsidian SecretStorage，不写入插件配置文件。输入后点击保存；已保存的密钥不回显。' : '保存密钥需要 Obsidian 1.11.4 或更新版本。')
-			.addText(text => {
-				keyInput = text;
-				text.inputEl.type = 'password';
-				text.inputEl.autocomplete = 'off';
-				text.setPlaceholder(secrets?.getSecret(secretId) ? '已保存；输入新密钥可替换' : '输入 API Key');
-				text.setDisabled(!secrets);
-			})
-			.addButton(button => button.setButtonText('保存密钥').setDisabled(!secrets).onClick(() => {
-				const value = keyInput.getValue().trim();
-				if (!value || !secrets) { new Notice('请先输入 API Key'); return; }
-				try {
-					secrets.setSecret(secretId, value);
-					keyInput.setValue('').setPlaceholder('已保存；输入新密钥可替换');
-					new Notice('API Key 已保存');
-				} catch { new Notice('API Key 保存失败，请重试'); }
-			}))
-			.addButton(button => button.setButtonText('清除密钥').setDisabled(!secrets).onClick(() => {
-				try {
-					secrets?.setSecret(secretId, '');
-					keyInput.setValue('').setPlaceholder('输入 API Key');
-					new Notice('API Key 已清除');
-				} catch { new Notice('API Key 清除失败，请重试'); }
-			}));
 
 		this.addHeading('Editing PDF files', 'edit', 'lucide-save')
 			.then((setting) => {

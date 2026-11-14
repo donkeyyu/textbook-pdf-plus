@@ -1,15 +1,9 @@
 {
-    "id": "pdf-plus",
-    "name": "PDF++",
+    "id": "textbook-study",
+    "name": "教材学习",
     "version": "0.40.31",
     "minAppVersion": "1.5.8",
-    "description": "The most Obsidian-native PDF annotation tool ever.",
-    "author": "Ryota Ushio",
-    "authorUrl": "https://github.com/RyotaUshio",
-    "fundingUrl": {
-        "GitHub Sponsor": "https://github.com/sponsors/RyotaUshio",
-        "Buy Me a Coffee": "https://www.buymeacoffee.com/ryotaushio",
-        "Ko-fi": "https://ko-fi.com/ryotaushio"
-    },
+    "description": "教材 PDF 框选笔记、章节索引与复习。基于 PDF++（Ryota Ushio，MIT）。",
+    "author": "Chengqi Yu",
     "isDesktopOnly": false
 }

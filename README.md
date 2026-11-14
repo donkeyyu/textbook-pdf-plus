@@ -1,24 +1,42 @@
 ## Local textbook workflow
 
+This fork ships as its own plugin: **教材学习** (ID `textbook-study`), based on
+PDF++ (MIT, Ryota Ushio). It includes every PDF++ feature, so PDF++ itself must be
+turned off; a persistent notice asks for that when both are enabled. Settings show
+教材笔记管理, a short 常用 group (笔记打开位置, PDF 默认缩放), and a 高级设置 toggle
+that reveals the full PDF++ settings list. Links to a hidden setting turn the toggle
+on. The PDF++ update check is off by default because its link installs PDF++. The
+auto-copy, auto-focus and auto-paste ribbon icons are hidden by default.
+
+Getting started: after installation, the **教材学习 · 开始使用** guide opens once.
+Reopen it from the graduation-cap ribbon icon, the command **教材学习：开始使用**, or
+the **打开使用指南** button in settings. It checks the note template, note folder and
+optional AI service as the same editable fields shown in settings (a blank note
+folder shows Obsidian's default location as placeholder; the template path has
+**创建模板** or **编辑模板**), and lists the learning steps with
+buttons for chapter setup, box notes and the chapter sidebar. The empty sidebar
+links to the guide too.
+
 This local fork adds **框选笔记** to the PDF toolbar. Click it, drag from the
 upper-left to the lower-right, and a Markdown note opens beside the PDF.
 Open **教材笔记管理** from the command palette (or the PDF++ settings) to
 choose the default note folder and template. A blank folder follows Obsidian’s
 new-note location; a configured vault-relative folder is created when needed.
-The management section accepts an OpenAI-compatible Responses API Base URL
-and model ID (`api_url`, `model_name`). Enter `api_key` in the password field
-and click 保存密钥; it uses Obsidian SecretStorage (1.11.4+), never plugin data.json.
+The optional AI section accepts an OpenAI-compatible Responses API Base URL
+and model ID (labelled 服务地址 / 模型名称; stored as `api_url`, `model_name`).
+Enter the key in **API 密钥** and click 保存密钥; it uses Obsidian SecretStorage (1.11.4+), never plugin data.json.
 The key is not echoed back; 清除密钥 clears the stored value. These settings do not
 make network requests by themselves. Live provider compatibility must be checked
 with a user-configured key; automated tests use a simulated Responses endpoint.
-The default template is `Templates/教材框选笔记.md` in the vault. Copy the supplied
-`templates/教材框选笔记.md` there when installing this build. Editing that file
+The default template is `Templates/教材框选笔记.md` in the vault. The bundled
+`templates/教材框选笔记.md` is written there on the first box note, or by
+**创建模板**; an existing file is never replaced. Editing that file
 changes future notes without a restart. Keep its region and return-link placeholders
 to retain the marked PDF region. The template adds editable `content_type`
 (知识点 / 习题), `note_type` (补充 / 说明), and `printed_page` properties.
 `textbook` and `pdf_page` fill automatically. The four supported placeholders are
 `{{textbook}}` (a YAML-quoted link), `{{pdf_page}}`, `{{textbook_region}}`, and
-`{{back_to_textbook}}`. A missing template stops creation with a notice.
+`{{back_to_textbook}}`. A missing custom template path stops creation with a notice.
 The note contains the selected region and a return link. A missing color defaults
 to yellow so the rectangle remains visible. Escape cancels drawing. The original
 copy-only workflow remains available as **Start rectangular selection**.
@@ -80,7 +98,13 @@ Index and note writes reject concurrent edits rather than overwrite newer change
 Chapter sidebar: **打开教材章节侧栏** lists the chapters of the active PDF, or of the
 active note's textbook, with note counts. Chapters start collapsed; the active
 note's chapter opens. Click a chapter to open its first PDF page, or a note to open it.
-Notes without a valid chapter appear under 未分章.
+Notes without a valid chapter appear under 未分章. Opening a note reuses PDF++'s
+note-pane settings and existing note tabs, keeping the PDF available for reading.
+Search the sidebar by note or chapter name to reveal matching branches; clear the
+search (or press Escape in the search field) to restore your expanded chapters.
+Chapter expanders, PDF links, and note rows support Tab and Enter/Space. Note titles
+and page labels appear on separate lines. Empty and unreadable textbooks show a
+next step or retry action instead of a blank list.
 
 AI note suggestions: on a textbook note with a box, click **AI 建议** in the top bar
 or run **AI 生成笔记建议**. The dialog names the service and lists what will be sent:
@@ -116,8 +140,8 @@ a chapter, and boxes rendered on the PDF. The chapter dropdown worked after typi
 the note, and the sidebar and AI confirmation dialog rendered. No live AI service was called.
 
 Source baseline: `6a3218b9c506076b405438489e614bc9e22b833b` (PDF++ 0.40.31).
-Only the isolated `pdf-plus-path-validation` vault receives this local build.
-Upstream plugin updates can replace it; the editable source is in this repository.
+Only the isolated `pdf-plus-path-validation` vault receives this local build, in
+`.obsidian/plugins/textbook-study`. The editable source is in this repository.
 
 Build with the checked-in dependency lock:
 

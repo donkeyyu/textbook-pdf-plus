@@ -19,6 +19,7 @@ const context = {
         if (id === 'obsidian') return { TFile, TFolder, MarkdownView, normalizePath: path => path.replace(/\/+/g, '/'), Notice: class { constructor(message) { notices.push(message); } } };
         if (id === 'lib/component') return { PDFPlusComponent: class {} };
         if (id === 'utils') return {};
+        if (id === './chapters/guide') return { DEFAULT_TEMPLATE_PATH: 'Templates/教材框选笔记.md', ensureTemplate: async () => 'exists' };
         if (id === './chapters/store') return { frontmatter: content => ({ properties: /section_title: (.+)/.exec(content) ? { section_title: /section_title: (.+)/.exec(content)[1] } : {} }), rectangleMetadata: async (_plugin, _pdf, _doc, _page, _rect, content) => content };
         throw new Error(`Unexpected import: ${id}`);
     }
