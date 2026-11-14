@@ -140,7 +140,7 @@ a chapter, and boxes rendered on the PDF. The chapter dropdown worked after typi
 the note, and the sidebar and AI confirmation dialog rendered. No live AI service was called.
 
 Source baseline: `6a3218b9c506076b405438489e614bc9e22b833b` (PDF++ 0.40.31).
-Only the isolated `pdf-plus-path-validation` vault receives this local build, in
+Only the isolated `textbook-study-vault` vault receives this local build, in
 `.obsidian/plugins/textbook-study`. The editable source is in this repository.
 
 Build with the checked-in dependency lock:

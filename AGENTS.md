@@ -17,5 +17,5 @@
 - For code changes, run `npm run build`, ESLint on changed TypeScript files,
   and affected tests with `node --test`. For viewer or interaction changes,
   also verify the workflow in Obsidian and report any untested behavior.
-- Use the isolated `pdf-plus-path-validation` vault for local deployment and
+- Use the isolated `textbook-study-vault` vault for local deployment and
   manual tests. Deploy to other vaults only when requested.
